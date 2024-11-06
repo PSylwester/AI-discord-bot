@@ -42,10 +42,16 @@ async def play_song(ctx, song_url):
             'options': '-vn'
         }
         source = discord.FFmpegPCMAudio(audio_url, **ffmpeg_options)
-        voice_client.play(source)
+
+        # Odtwarzanie źródła i informowanie o końcu utworu
+        voice_client.play(source, after=lambda e: bot.loop.create_task(on_song_end(ctx, song_title)))
 
         # Wyświetlenie odtwarzanej piosenki
         await ctx.send(f"Odtwarzam: {song_title}")
+
+# Funkcja informująca o zakończeniu utworu
+async def on_song_end(ctx, song_title):
+    await ctx.send(f"Zakończono odtwarzanie: {song_title}")
 
 # Oddzielna funkcja do obsługi przycisków
 async def button_callback(interaction, ctx, url):
@@ -79,8 +85,6 @@ async def search(ctx, *, query: str):
         for result in search_results:
             # Tworzenie przycisków dla każdego wyniku wyszukiwania
             button = Button(label=result["title"][:80], style=discord.ButtonStyle.primary)
-
-            # Przekazywanie odpowiedniej funkcji do przycisku
             button.callback = lambda interaction, url=result["url"]: button_callback(interaction, ctx, url)
             view.add_item(button)
 
