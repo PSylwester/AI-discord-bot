@@ -5,7 +5,6 @@ from apikeys import *
 import yt_dlp
 
 # Definiowanie intents
-# Definiowanie intents
 intents = discord.Intents.default()
 intents.messages = True              # Włącza dostęp do wiadomości
 intents.message_content = True       # Włącza dostęp do treści wiadomości
@@ -59,18 +58,21 @@ async def play(ctx, *, query: str):
             info = ydl.extract_info(song_url, download=False)
             audio_url = info['url']
             source = discord.FFmpegPCMAudio(audio_url)
-            voice_client.play(source)
+            # Dodajemy funkcję `after`, aby bot rozłączył się po zakończeniu odtwarzania
+            voice_client.play(source, after=lambda e: ctx.bot.loop.create_task(ctx.voice_client.disconnect()) if not e else None)
             await ctx.send(f"Odtwarzam: {info.get('title', 'Nieznany tytuł')}")
     else:
         await ctx.send("Nie znaleziono piosenki o podanej nazwie.")
+
 
 # Komenda do zatrzymania muzyki
 @bot.command(name='stop')
 async def stop(ctx):
     voice_client = ctx.voice_client
-    if voice_client.is_playing():
+    if voice_client and voice_client.is_playing():
         voice_client.stop()
         await ctx.send("Muzyka zatrzymana.")
+
 
 # Polecenie opuszczenia kanału głosowego
 @bot.command(name='leave')
