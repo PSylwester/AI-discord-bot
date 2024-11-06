@@ -1,34 +1,56 @@
 import discord
 from discord.ext import commands
+from discord.ui import View, Button
 from youtube_search import YoutubeSearch
 from apikeys import *
 import yt_dlp
 
 # Definiowanie intents
 intents = discord.Intents.default()
-intents.messages = True              # Włącza dostęp do wiadomości
-intents.message_content = True       # Włącza dostęp do treści wiadomości
-intents.guilds = True                # Włącza dostęp do informacji o serwerach
-intents.voice_states = True          # Włącza dostęp do stanów głosowych
+intents.messages = True
+intents.message_content = True
+intents.guilds = True
+intents.voice_states = True
 
 # Stworzenie instancji bota
 bot = commands.Bot(command_prefix='!', intents=intents)
 
-
-# Funkcja wyszukiwania video na YouTube
+# Funkcja wyszukiwania video na YouTube, zwracająca 5 wyników
 def search_youtube(query):
-    results = YoutubeSearch(query, max_results=1).to_dict()
-    if results:
-        return f"https://www.youtube.com/watch?v={results[0]['id']}"
-    else:
-        return None
+    results = YoutubeSearch(query, max_results=5).to_dict()
+    return [
+        {"title": result["title"], "url": f"https://www.youtube.com/watch?v={result['id']}"}
+        for result in results
+    ] if results else None
 
+# Funkcja do odtwarzania utworu z podanego URL
+async def play_song(ctx, song_url):
+    voice_client = ctx.voice_client
+    ydl_opts = {
+        'format': 'bestaudio',
+        'quiet': True
+    }
 
-# Polecenie dołączenia do kanału głosowego i odtwarzania muzyki
-@bot.command(name='play')
-async def play(ctx, *, query: str):
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        info = ydl.extract_info(song_url, download=False)
+        audio_url = info['url']
+        song_title = info.get('title', 'Nieznany tytuł')
+
+        # Użycie poprawnych opcji FFmpeg
+        ffmpeg_options = {
+            'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5',
+            'options': '-vn'
+        }
+        source = discord.FFmpegPCMAudio(audio_url, **ffmpeg_options)
+        voice_client.play(source)
+
+        # Wyświetlenie odtwarzanej piosenki
+        await ctx.send(f"Odtwarzam: {song_title}")
+
+# Oddzielna funkcja do obsługi przycisków
+async def button_callback(interaction, ctx, url):
     if not ctx.author.voice:
-        await ctx.send("Musisz być na kanale głosowym, aby użyć tej komendy.")
+        await interaction.response.send_message("Musisz być na kanale głosowym, aby odtwarzać muzykę.", ephemeral=True)
         return
 
     channel = ctx.author.voice.channel
@@ -42,39 +64,61 @@ async def play(ctx, *, query: str):
     if voice_client.is_playing():
         voice_client.stop()
 
-    song_url = search_youtube(query)
-    if song_url:
-        ydl_opts = {
-            'format': 'bestaudio',
-            'postprocessors': [{
-                'key': 'FFmpegExtractAudio',
-                'preferredcodec': 'mp3',
-                'preferredquality': '192',
-            }],
-            'quiet': True
-        }
+    # Natychmiastowa odpowiedź na interakcję
+    await interaction.response.send_message("Rozpoczęto odtwarzanie", ephemeral=True)
 
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(song_url, download=False)
-            audio_url = info['url']
-            source = discord.FFmpegPCMAudio(audio_url)
-            # Dodajemy funkcję `after`, aby bot rozłączył się po zakończeniu odtwarzania
-            voice_client.play(source, after=lambda e: ctx.bot.loop.create_task(ctx.voice_client.disconnect()) if not e else None)
-            await ctx.send(f"Odtwarzam: {info.get('title', 'Nieznany tytuł')}")
+    # Uruchom odtwarzanie w osobnym zadaniu
+    await play_song(ctx, url)
+
+# Polecenie do wyszukiwania i wyświetlania 5 wyników z przyciskami
+@bot.command(name='search')
+async def search(ctx, *, query: str):
+    search_results = search_youtube(query)
+    if search_results:
+        view = View()
+        for result in search_results:
+            # Tworzenie przycisków dla każdego wyniku wyszukiwania
+            button = Button(label=result["title"][:80], style=discord.ButtonStyle.primary)
+
+            # Przekazywanie odpowiedniej funkcji do przycisku
+            button.callback = lambda interaction, url=result["url"]: button_callback(interaction, ctx, url)
+            view.add_item(button)
+
+        await ctx.send("Wybierz utwór z listy:", view=view)
     else:
-        await ctx.send("Nie znaleziono piosenki o podanej nazwie.")
+        await ctx.send("Nie znaleziono wyników dla podanej frazy.")
 
-
-# Komenda do zatrzymania muzyki
+# Komendy do zarządzania odtwarzaniem
 @bot.command(name='stop')
 async def stop(ctx):
     voice_client = ctx.voice_client
-    if voice_client and voice_client.is_playing():
+    if not voice_client or not voice_client.is_connected():
+        await ctx.send("Nie jestem na kanale głosowym.")
+        return
+    if voice_client.is_playing():
         voice_client.stop()
         await ctx.send("Muzyka zatrzymana.")
 
+@bot.command(name='pause')
+async def pause(ctx):
+    voice_client = ctx.voice_client
+    if not voice_client or not voice_client.is_connected():
+        await ctx.send("Nie jestem na kanale głosowym.")
+        return
+    if voice_client.is_playing():
+        voice_client.pause()
+        await ctx.send("Muzyka wstrzymana.")
 
-# Polecenie opuszczenia kanału głosowego
+@bot.command(name='resume')
+async def resume(ctx):
+    voice_client = ctx.voice_client
+    if not voice_client or not voice_client.is_connected():
+        await ctx.send("Nie jestem na kanale głosowym.")
+        return
+    if voice_client.is_paused():
+        voice_client.resume()
+        await ctx.send("Wznawiam muzykę.")
+
 @bot.command(name='leave')
 async def leave(ctx):
     if ctx.voice_client:
@@ -83,12 +127,11 @@ async def leave(ctx):
     else:
         await ctx.send("Nie jestem na żadnym kanale głosowym.")
 
-
 # Event informujący o gotowości bota
 @bot.event
 async def on_ready():
     print(f'Zalogowano jako {bot.user.name}')
 
-
 # Uruchomienie bota
 bot.run(BOTTOKEN)
+
