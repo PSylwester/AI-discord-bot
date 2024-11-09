@@ -56,7 +56,7 @@ async def play_list_command(ctx):
     await play_playlist_song(ctx, bot.playlist)
 
 # Komenda do przechodzenia do następnego utworu
-@bot.command(name='next')
+@bot.command(name='next_list')
 async def next_command(ctx):
     if not bot.playlist.queue:
         await ctx.send("Playlista jest pusta. Użyj komendy `!create_list <zapytanie>`, aby utworzyć playlistę.")

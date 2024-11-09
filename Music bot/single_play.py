@@ -4,7 +4,6 @@ import yt_dlp
 from discord.ui import View, Button
 from functools import partial
 
-
 def search_single_song(query):
     results = YoutubeSearch(query, max_results=10).to_dict()
     return [
@@ -12,23 +11,32 @@ def search_single_song(query):
         for result in results
     ] if results else None
 
-
-async def play_single_song(ctx, song_url):
-    guild = ctx.guild
-    user = ctx.author  # Zmieniono z ctx.user na ctx.author
-
-    if not user.voice:
-        await ctx.send("Musisz być na kanale głosowym, aby odtwarzać muzykę.")
-        return
-
-    channel = user.voice.channel
-    voice_client = guild.voice_client
-
-    if not voice_client or not voice_client.is_connected():
-        voice_client = await channel.connect()
+async def ensure_voice_connection(source_ctx):
+    """Reconnect to the voice channel if disconnected unexpectedly."""
+    if isinstance(source_ctx, discord.Interaction):
+        user = source_ctx.user
     else:
-        if voice_client.is_playing():
-            voice_client.stop()
+        user = source_ctx.author
+
+    guild = source_ctx.guild
+    channel = user.voice.channel if user.voice else None
+
+    if channel:
+        voice_client = guild.voice_client
+        if not isinstance(voice_client, discord.VoiceClient) or not voice_client.is_connected():
+            voice_client = await channel.connect()
+        return voice_client
+    else:
+        if isinstance(source_ctx, discord.Interaction):
+            await source_ctx.response.send_message("Musisz być na kanale głosowym, aby odtwarzać muzykę.")
+        else:
+            await source_ctx.send("Musisz być na kanale głosowym, aby odtwarzać muzykę.")
+        return None
+
+async def play_single_song(ctx_or_interaction, song_url):
+    voice_client = await ensure_voice_connection(ctx_or_interaction)
+    if not voice_client or not isinstance(voice_client, discord.VoiceClient):
+        return  # Exit if no connection could be established
 
     ydl_opts = {'format': 'bestaudio', 'quiet': True}
     try:
@@ -42,16 +50,25 @@ async def play_single_song(ctx, song_url):
             }
             source = discord.FFmpegPCMAudio(audio_url, **ffmpeg_options)
 
-            voice_client.play(source)
-            await ctx.send(f"Odtwarzam: {song_title}")
-    except Exception as e:
-        await ctx.send("Wystąpił błąd podczas odtwarzania utworu.")
-        print(f"Błąd: {e}")
+            if voice_client.is_playing():
+                voice_client.stop()  # Stop any existing audio before playing new one
 
+            voice_client.play(source)
+            message = f"Odtwarzam: {song_title}"
+            if isinstance(ctx_or_interaction, discord.Interaction):
+                await ctx_or_interaction.response.send_message(message)
+            else:
+                await ctx_or_interaction.send(message)
+    except Exception as e:
+        error_message = "Wystąpił błąd podczas odtwarzania utworu."
+        if isinstance(ctx_or_interaction, discord.Interaction):
+            await ctx_or_interaction.response.send_message(error_message)
+        else:
+            await ctx_or_interaction.send(error_message)
+        print(f"Błąd: {e}")
 
 async def button_callback(interaction: discord.Interaction, url):
     await play_single_song(interaction, url)
-
 
 async def send_song_selection(ctx, query):
     search_results = search_single_song(query)
@@ -64,30 +81,26 @@ async def send_song_selection(ctx, query):
 
         await ctx.send("Wybierz utwór z listy:", view=view)
 
-
 async def leave_channel(ctx):
     voice_client = ctx.voice_client
-    if voice_client and voice_client.is_connected():
+    if isinstance(voice_client, discord.VoiceClient) and voice_client.is_connected():
         await voice_client.disconnect()
         await ctx.send("Opuszczam kanał głosowy.")
 
-
 async def stop(ctx):
     voice_client = ctx.voice_client
-    if voice_client and voice_client.is_playing():
+    if isinstance(voice_client, discord.VoiceClient) and voice_client.is_playing():
         voice_client.stop()
         await ctx.send("Muzyka zatrzymana.")
 
-
 async def pause(ctx):
     voice_client = ctx.voice_client
-    if voice_client and voice_client.is_playing():
+    if isinstance(voice_client, discord.VoiceClient) and voice_client.is_playing():
         voice_client.pause()
         await ctx.send("Muzyka wstrzymana.")
 
-
 async def resume(ctx):
     voice_client = ctx.voice_client
-    if voice_client and voice_client.is_paused():
+    if isinstance(voice_client, discord.VoiceClient) and voice_client.is_paused():
         voice_client.resume()
         await ctx.send("Wznawiam muzykę.")

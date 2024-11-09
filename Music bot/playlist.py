@@ -1,5 +1,15 @@
+import discord
+import yt_dlp as youtube_dl
+import asyncio
 from single_play import play_single_song, search_single_song
 
+ydl_opts = {
+    'format': 'bestaudio[ext=webm]/bestaudio/best',
+    'noplaylist': True,
+    'quiet': True,
+    'no_warnings': True,
+    'default_search': 'ytsearch'
+}
 
 class Playlist:
     def __init__(self):
@@ -7,8 +17,9 @@ class Playlist:
         self.current_index = 0
 
     def add_songs(self, songs):
-        self.queue = songs
-        self.current_index = 0
+        self.queue.extend(songs)
+        if len(self.queue) == len(songs):
+            self.current_index = 0
 
     def get_current_song(self):
         return self.queue[self.current_index] if self.queue else None
@@ -19,37 +30,66 @@ class Playlist:
             return self.queue[self.current_index]
         return None
 
+    def previous_song(self):
+        if self.current_index > 0:
+            self.current_index -= 1
+            return self.queue[self.current_index]
+        return None
+
     def reset(self):
         self.queue = []
         self.current_index = 0
 
 
 async def play_playlist_song(ctx, playlist):
+    voice_client = ctx.voice_client
+    if not voice_client:
+        if ctx.author.voice:
+            voice_client = await ctx.author.voice.channel.connect()
+        else:
+            await ctx.send("Musisz być na kanale głosowym, aby odtworzyć muzykę.")
+            return
+
     current_song = playlist.get_current_song()
-    if current_song:
-        voice_client = ctx.voice_client
-        await play_single_song(ctx, current_song["url"])
+    if not current_song:
+        await ctx.send("Playlista jest pusta.")
+        return
 
-        # Ustawienie automatycznego przejścia do kolejnego utworu
-        def after_playback(error):
-            if error:
-                print(f"Błąd podczas odtwarzania: {error}")
-            else:
-                # Przejście do następnego utworu po zakończeniu
-                ctx.bot.loop.create_task(play_next_in_playlist(ctx))
+    with youtube_dl.YoutubeDL(ydl_opts) as ydl:
+        try:
+            info = ydl.extract_info(current_song['url'], download=False)
+            url = info['url']
+        except Exception as e:
+            await ctx.send(f"Błąd podczas pobierania utworu: {e}")
+            return
 
-        # Sprawdzenie, czy voice_client istnieje i odtwarza
-        if voice_client and not voice_client.is_playing():
-            voice_client.play(voice_client.source, after=after_playback)
+    ffmpeg_options = {
+        'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 -user_agent "Mozilla/5.0"',
+        'options': '-vn'
+    }
 
+    def after_playback(error):
+        if error:
+            print(f"Błąd podczas odtwarzania: {error}")
+
+        loop = ctx.bot.loop  # Używamy głównej pętli zdarzeń bota
+        fut = asyncio.run_coroutine_threadsafe(play_next_in_playlist(ctx), loop)
+        try:
+            fut.result()
+        except Exception as e:
+            print(f"Błąd podczas przechodzenia do kolejnego utworu: {e}")
+
+    if voice_client.is_playing():
+        voice_client.stop()
+
+    # Zainicjuj odtwarzanie i przypisz funkcję after_playback
+    voice_client.play(discord.FFmpegPCMAudio(url, **ffmpeg_options), after=after_playback)
+    await ctx.send(f"Odtwarzam: {current_song['title']}")
 
 
 async def play_next_in_playlist(ctx):
     playlist = ctx.bot.playlist
     voice_client = ctx.voice_client
-
-    if voice_client and voice_client.is_playing():
-        voice_client.stop()
 
     next_track = playlist.next_song()
     if next_track:
@@ -57,7 +97,9 @@ async def play_next_in_playlist(ctx):
     else:
         await ctx.send("Playlista zakończona.")
         if voice_client:
-            await voice_client.disconnect()
+            await asyncio.sleep(60)  # Poczekaj 60 sekund przed rozłączeniem
+            if not voice_client.is_playing():
+                await voice_client.disconnect()
 
 
 async def display_playlist(ctx, playlist):
