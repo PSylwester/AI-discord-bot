@@ -1,7 +1,7 @@
 import discord
 from discord.ext import commands
 from single_play import send_song_selection, stop, pause, resume
-from playlist import Playlist, play_playlist_song, create_playlist
+from playlist import PlaylistManager
 from apikeys import *
 
 intents = discord.Intents.default()
@@ -11,7 +11,7 @@ intents.guilds = True
 intents.voice_states = True
 
 bot = commands.Bot(command_prefix='!', intents=intents)
-bot.playlist = Playlist()
+bot.playlist = PlaylistManager(bot)
 
 # Komenda do odtwarzania pojedynczego utworu
 @bot.command(name='play')
@@ -32,7 +32,7 @@ async def create_playlist_command(ctx, *, query: str = None):
         await ctx.send("Nie podałeś zapytania do utworzenia playlisty. Użyj komendy w formacie: `!create_list <nazwa utworu lub artysty>`")
         return
 
-    await create_playlist(ctx, query, bot.playlist)
+    await bot.playlist.create_playlist(ctx, query)
 
 # Komenda do odtwarzania playlisty
 @bot.command(name='play_list')
@@ -45,7 +45,15 @@ async def play_list_command(ctx):
         await ctx.send("Playlista jest pusta. Użyj komendy `!create_list <zapytanie>`, aby utworzyć playlistę.")
         return
 
-    await play_playlist_song(ctx, bot.playlist)
+    await bot.playlist.play_song(ctx)
+
+# Komendy sterujące zatrzymaniem playlisty
+@bot.command(name='stop_list')
+async def stop_list_command(ctx):
+    if ctx.voice_client and ctx.voice_client.is_playing():
+        ctx.voice_client.stop()
+    bot.playlist.reset()
+    await ctx.send("Odtwarzanie playlisty zostało zatrzymane i playlista została wyczyszczona.")
 
 # Komendy sterujące odtwarzaniem pojedynczego utworu
 @bot.command(name='stop')

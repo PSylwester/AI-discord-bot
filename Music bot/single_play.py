@@ -12,7 +12,6 @@ def search_single_song(query):
     ] if results else None
 
 async def ensure_voice_connection(source_ctx):
-    """Reconnect to the voice channel if disconnected unexpectedly."""
     if isinstance(source_ctx, discord.Interaction):
         user = source_ctx.user
     else:
@@ -36,7 +35,7 @@ async def ensure_voice_connection(source_ctx):
 async def play_single_song(ctx_or_interaction, song_url):
     voice_client = await ensure_voice_connection(ctx_or_interaction)
     if not voice_client or not isinstance(voice_client, discord.VoiceClient):
-        return  # Exit if no connection could be established
+        return
 
     ydl_opts = {'format': 'bestaudio', 'quiet': True}
     try:
@@ -51,21 +50,29 @@ async def play_single_song(ctx_or_interaction, song_url):
             source = discord.FFmpegPCMAudio(audio_url, **ffmpeg_options)
 
             if voice_client.is_playing():
-                voice_client.stop()  # Stop any existing audio before playing new one
+                voice_client.stop()
 
             voice_client.play(source)
             message = f"Odtwarzam: {song_title}"
+            # Check if interaction is valid
             if isinstance(ctx_or_interaction, discord.Interaction):
-                await ctx_or_interaction.response.send_message(message)
+                try:
+                    await ctx_or_interaction.response.send_message(message)
+                except discord.errors.NotFound:
+                    print("Interaction not found or expired.")
             else:
                 await ctx_or_interaction.send(message)
     except Exception as e:
-        error_message = "Wystąpił błąd podczas odtwarzania utworu."
+        error_message = "Wystąpił błąd podczas odtwarzania utworu. Spróbuj ponownie lub sprawdź połączenie."
         if isinstance(ctx_or_interaction, discord.Interaction):
-            await ctx_or_interaction.response.send_message(error_message)
+            try:
+                await ctx_or_interaction.response.send_message(error_message)
+            except discord.errors.NotFound:
+                print("Interaction not found or expired.")
         else:
             await ctx_or_interaction.send(error_message)
         print(f"Błąd: {e}")
+
 
 async def button_callback(interaction: discord.Interaction, url):
     await play_single_song(interaction, url)
@@ -80,6 +87,8 @@ async def send_song_selection(ctx, query):
             view.add_item(button)
 
         await ctx.send("Wybierz utwór z listy:", view=view)
+    else:
+        await ctx.send("Nie znaleziono wyników dla podanego zapytania.")
 
 async def stop(ctx):
     voice_client = ctx.voice_client
