@@ -1,7 +1,8 @@
 import discord
 import yt_dlp as youtube_dl
 import asyncio
-from single_play import play_single_song, search_single_song
+from single_play import search_single_song
+from discord.ui import View, Button
 
 ydl_opts = {
     'format': 'bestaudio[ext=webm]/bestaudio/best',
@@ -30,16 +31,9 @@ class Playlist:
             return self.queue[self.current_index]
         return None
 
-    def previous_song(self):
-        if self.current_index > 0:
-            self.current_index -= 1
-            return self.queue[self.current_index]
-        return None
-
     def reset(self):
         self.queue = []
         self.current_index = 0
-
 
 async def play_playlist_song(ctx, playlist):
     voice_client = ctx.voice_client
@@ -71,8 +65,7 @@ async def play_playlist_song(ctx, playlist):
     def after_playback(error):
         if error:
             print(f"Błąd podczas odtwarzania: {error}")
-
-        loop = ctx.bot.loop  # Używamy głównej pętli zdarzeń bota
+        loop = ctx.bot.loop
         fut = asyncio.run_coroutine_threadsafe(play_next_in_playlist(ctx), loop)
         try:
             fut.result()
@@ -82,10 +75,8 @@ async def play_playlist_song(ctx, playlist):
     if voice_client.is_playing():
         voice_client.stop()
 
-    # Zainicjuj odtwarzanie i przypisz funkcję after_playback
     voice_client.play(discord.FFmpegPCMAudio(url, **ffmpeg_options), after=after_playback)
     await ctx.send(f"Odtwarzam: {current_song['title']}")
-
 
 async def play_next_in_playlist(ctx):
     playlist = ctx.bot.playlist
@@ -97,24 +88,22 @@ async def play_next_in_playlist(ctx):
     else:
         await ctx.send("Playlista zakończona.")
         if voice_client:
-            await asyncio.sleep(60)  # Poczekaj 60 sekund przed rozłączeniem
+            await asyncio.sleep(60)
             if not voice_client.is_playing():
                 await voice_client.disconnect()
-
-
-async def display_playlist(ctx, playlist):
-    if playlist.queue:
-        playlist_text = "\n".join([f"{idx + 1}. {song['title']}" for idx, song in enumerate(playlist.queue)])
-        await ctx.send(f"**Playlista:**\n{playlist_text}")
-    else:
-        await ctx.send("Playlista jest pusta.")
 
 
 async def create_playlist(ctx, query, playlist):
     search_results = search_single_song(query)
     if search_results:
         playlist.add_songs(search_results)
-        await display_playlist(ctx, playlist)
-        await ctx.send("Playlista została utworzona. Użyj komendy !play_list, aby rozpocząć odtwarzanie.")
+
+        # Tworzymy listę tytułów utworów
+        song_list = "\n".join([f"{idx + 1}. {song['title']}" for idx, song in enumerate(search_results)])
+
+        # Wysyłamy listę piosenek do kanału
+        await ctx.send("Playlista została utworzona z następującymi utworami:\n" + song_list)
+
+        await ctx.send("Użyj komendy !play_list, aby rozpocząć odtwarzanie.")
     else:
         await ctx.send("Nie znaleziono wyników dla podanej frazy.")

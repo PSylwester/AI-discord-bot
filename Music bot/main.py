@@ -1,7 +1,7 @@
 import discord
 from discord.ext import commands
-from single_play import send_song_selection, stop, pause, resume, leave_channel
-from playlist import Playlist, play_playlist_song, play_next_in_playlist, display_playlist, create_playlist
+from single_play import send_song_selection, stop, pause, resume
+from playlist import Playlist, play_playlist_song, create_playlist
 from apikeys import *
 
 intents = discord.Intents.default()
@@ -34,14 +34,6 @@ async def create_playlist_command(ctx, *, query: str = None):
 
     await create_playlist(ctx, query, bot.playlist)
 
-# Komenda do wyświetlenia playlisty
-@bot.command(name='display_list')
-async def display_list_command(ctx):
-    if not bot.playlist.queue:
-        await ctx.send("Playlista jest pusta. Użyj komendy `!create_list <zapytanie>`, aby utworzyć playlistę.")
-    else:
-        await display_playlist(ctx, bot.playlist)
-
 # Komenda do odtwarzania playlisty
 @bot.command(name='play_list')
 async def play_list_command(ctx):
@@ -54,14 +46,6 @@ async def play_list_command(ctx):
         return
 
     await play_playlist_song(ctx, bot.playlist)
-
-# Komenda do przechodzenia do następnego utworu
-@bot.command(name='next_list')
-async def next_command(ctx):
-    if not bot.playlist.queue:
-        await ctx.send("Playlista jest pusta. Użyj komendy `!create_list <zapytanie>`, aby utworzyć playlistę.")
-        return
-    await play_next_in_playlist(ctx)
 
 # Komendy sterujące odtwarzaniem pojedynczego utworu
 @bot.command(name='stop')

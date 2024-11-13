@@ -81,12 +81,6 @@ async def send_song_selection(ctx, query):
 
         await ctx.send("Wybierz utwór z listy:", view=view)
 
-async def leave_channel(ctx):
-    voice_client = ctx.voice_client
-    if isinstance(voice_client, discord.VoiceClient) and voice_client.is_connected():
-        await voice_client.disconnect()
-        await ctx.send("Opuszczam kanał głosowy.")
-
 async def stop(ctx):
     voice_client = ctx.voice_client
     if isinstance(voice_client, discord.VoiceClient) and voice_client.is_playing():
