@@ -2,7 +2,8 @@ import discord
 from discord.ext import commands
 from single_play import send_song_selection, stop, pause, resume
 from playlist import PlaylistManager
-from apikeys import *
+from mood_detection import MoodDetection  # Import klasy MoodDetection
+from apikeys import *  # Import tokenu BOTA
 
 intents = discord.Intents.default()
 intents.messages = True
@@ -12,6 +13,9 @@ intents.voice_states = True
 
 bot = commands.Bot(command_prefix='!', intents=intents)
 bot.playlist = PlaylistManager(bot)
+
+# Inicjalizacja MoodDetection z PlaylistManager
+bot.mood_detection = MoodDetection(bot, bot.playlist)
 
 # Komenda do odtwarzania pojedynczego utworu
 @bot.command(name='play')
@@ -78,6 +82,17 @@ async def leave_command(ctx):
         await ctx.send("Opuszczam kanał głosowy i czyszczę pamięć playlisty.")
     else:
         await ctx.send("Nie jestem na żadnym kanale głosowym.")
+
+# Komendy do zarządzania AI rozpoznającym nastrój
+@bot.command(name='start_context_music')
+async def start_context_music(ctx):
+    """Aktywuje monitorowanie aktywności na kanale i dostosowuje muzykę do nastroju."""
+    await bot.mood_detection.start_monitoring(ctx)
+
+@bot.command(name='stop_context_music')
+async def stop_context_music(ctx):
+    """Dezaktywuje monitorowanie aktywności na kanale."""
+    await bot.mood_detection.stop_monitoring(ctx)
 
 # Event informujący użytkownika o błędnej komendzie
 @bot.event
