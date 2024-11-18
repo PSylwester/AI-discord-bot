@@ -146,5 +146,46 @@ async def summarise_youtube(ctx, url):
         final_summary = response['message']['content'] # Get the final summary as a message
         await ctx.send(final_summary) # Send the final summary as a message
 
+
+
+@bot.event
+async def on_message(message):
+    # Ignoruj wiadomości wysłane przez bota
+    if message.author.bot:
+        return
+    
+    # Wysyłanie wiadomości do AI w celu analizy
+    response = ollama.chat(model='llama3.2', messages=[
+        {
+            'role': 'system',
+            'content': '''
+            You are a content moderator. Evaluate the following message for:
+            1. Offensive language.
+            2. Hate speech.
+            3. Spam or unwanted advertising.
+            4. Links to malicious websites.
+            5. Classify messages in additional languages such as Polish.
+            Classify the following message as "acceptable" or "unacceptable". Otherwise, respond with "clean"
+            ''',
+        },
+        {
+            'role': 'user',
+            'content': f"Message: {message.content}",
+        },
+    ])
+
+    # Obsługa odpowiedzi z AI
+    try:
+        moderation_result = response['message']['content']
+        if "unacceptable" in moderation_result.lower():
+            await message.delete()  # Usuń niepożądaną wiadomość
+            await message.channel.send(f"{message.author.mention}, your message was removed due to policy violations.")
+    except KeyError:
+        print("AI moderation failed.")
+    
+    await bot.process_commands(message)
+
+    print("Odpowiedź AI:", response)
+
 # Uruchomienie bota z tokenem
 bot.run(CHATBOTTOKEN)
