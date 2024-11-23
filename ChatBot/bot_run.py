@@ -19,6 +19,9 @@ bot = commands.Bot(command_prefix='/', intents=intents)
 async def on_ready():
     print(f'Bot is ready as {bot.user.name}')
 
+# Lista dozwolonych kanałów
+allowed_channel_ids = [1297985734376165437, 1309723026283171891]  # Wstaw ID dozwolonych kanałów
+
 # Komenda testowa
 @bot.command(name="hello")
 async def hello(ctx):
@@ -26,9 +29,12 @@ async def hello(ctx):
 
 @bot.command(name="ask")
 async def ask(ctx, *, message):
-    allowed_channel_id = 1297985734376165437  # Wstaw tutaj ID swojego kanału
-    if ctx.channel.id != allowed_channel_id:
-        await ctx.send("This command can only be used in the 'porozmawiaj-z-ai' channel.")
+    # Sprawdź, czy wiadomość pochodzi z jednego z dozwolonych kanałów
+    if ctx.channel.id not in allowed_channel_ids:
+        # Tworzenie klikalnych odnośników do kanałów
+        allowed_channels_links = [f"<#{ch_id}>" for ch_id in allowed_channel_ids]
+        channels_message = ", ".join(allowed_channels_links)
+        await ctx.send(f"This command can only be used in the following channels: {channels_message}.")
         return
 
     # Uzyskanie odpowiedzi z ollama
@@ -60,9 +66,12 @@ async def ask(ctx, *, message):
 
 @bot.command(name="summarise")
 async def summarise(ctx):
-    allowed_channel_id = 1297985734376165437  # Wstaw tutaj ID swojego kanału
-    if ctx.channel.id != allowed_channel_id:
-        await ctx.send("This command can only be used in the 'porozmawiaj-z-ai' channel.")
+    # Sprawdź, czy wiadomość pochodzi z jednego z dozwolonych kanałów
+    if ctx.channel.id not in allowed_channel_ids:
+        # Tworzenie klikalnych odnośników do kanałów
+        allowed_channels_links = [f"<#{ch_id}>" for ch_id in allowed_channel_ids]
+        channels_message = ", ".join(allowed_channels_links)
+        await ctx.send(f"This command can only be used in the following channels: {channels_message}.")
         return
 
     msgs = [ message.content async for message in ctx.channel.history(limit=10)]
@@ -88,9 +97,12 @@ async def summarise(ctx):
 
 @bot.command(name="summarise_youtube")
 async def summarise_youtube(ctx, url):
-    allowed_channel_id = 1297985734376165437  # Wstaw tutaj ID swojego kanału
-    if ctx.channel.id != allowed_channel_id:
-        await ctx.send("This command can only be used in the 'porozmawiaj-z-ai' channel.")
+    # Sprawdź, czy wiadomość pochodzi z jednego z dozwolonych kanałów
+    if ctx.channel.id not in allowed_channel_ids:
+        # Tworzenie klikalnych odnośników do kanałów
+        allowed_channels_links = [f"<#{ch_id}>" for ch_id in allowed_channel_ids]
+        channels_message = ", ".join(allowed_channels_links)
+        await ctx.send(f"This command can only be used in the following channels: {channels_message}.")
         return
 
     await ctx.send("Fetching and summarising YouTube video...") # Send message indicating the start of the process
