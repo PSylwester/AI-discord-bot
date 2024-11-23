@@ -26,6 +26,11 @@ async def hello(ctx):
 
 @bot.command(name="ask")
 async def ask(ctx, *, message):
+    allowed_channel_id = 1297985734376165437  # Wstaw tutaj ID swojego kanału
+    if ctx.channel.id != allowed_channel_id:
+        await ctx.send("This command can only be used in the 'porozmawiaj-z-ai' channel.")
+        return
+
     # Uzyskanie odpowiedzi z ollama
     response = ollama.chat(model='llama3.2', messages=[
         {
@@ -55,6 +60,10 @@ async def ask(ctx, *, message):
 
 @bot.command(name="summarise")
 async def summarise(ctx):
+    allowed_channel_id = 1297985734376165437  # Wstaw tutaj ID swojego kanału
+    if ctx.channel.id != allowed_channel_id:
+        await ctx.send("This command can only be used in the 'porozmawiaj-z-ai' channel.")
+        return
 
     msgs = [ message.content async for message in ctx.channel.history(limit=10)]
 
@@ -79,6 +88,11 @@ async def summarise(ctx):
 
 @bot.command(name="summarise_youtube")
 async def summarise_youtube(ctx, url):
+    allowed_channel_id = 1297985734376165437  # Wstaw tutaj ID swojego kanału
+    if ctx.channel.id != allowed_channel_id:
+        await ctx.send("This command can only be used in the 'porozmawiaj-z-ai' channel.")
+        return
+
     await ctx.send("Fetching and summarising YouTube video...") # Send message indicating the start of the process
 
     # Extract video transcript using youtube_transcript_api
@@ -165,7 +179,7 @@ async def on_message(message):
             3. Spam or unwanted advertising.
             4. Links to malicious websites.
             5. Classify messages in additional languages such as Polish.
-            Classify the following message as "acceptable" or "unacceptable". Otherwise, respond with "clean"
+            Classify the following message as "acceptable" or "unacceptable". Otherwise, respond with "clean".
             ''',
         },
         {
