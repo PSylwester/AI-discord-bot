@@ -1,4 +1,3 @@
-import discord
 from discord.ext import tasks
 from transformers import pipeline
 
@@ -9,98 +8,93 @@ class MoodDetection:
         self.playlist_manager = playlist_manager
         self.is_monitoring = False
 
-        # Inicjalizacja modelu do analizy emocji
-        self.emotion_classifier = pipeline("text-classification", model="j-hartmann/emotion-english-distilroberta-base",
-                                           return_all_scores=True)
+        # Inicjalizacja modelu do analizy sentymentu
+        self.sentiment_analyzer = pipeline(
+            "sentiment-analysis",
+            model="distilbert-base-uncased-finetuned-sst-2-english"
+        )
 
     async def start_monitoring(self, ctx):
-        """Rozpoczyna monitorowanie aktywności na kanale z AI do analizy emocji."""
-        try:
-            if not ctx.author.voice or not ctx.author.voice.channel:
-                await ctx.send("Musisz być na kanale głosowym, aby rozpocząć monitorowanie.")
-                return
+        """Rozpoczyna monitorowanie aktywności na kanale."""
+        if not ctx.author.voice or not ctx.author.voice.channel:
+            await ctx.send("Musisz być na kanale głosowym, aby rozpocząć monitorowanie.")
+            return
 
-            self.is_monitoring = True
-            self.voice_channel = ctx.author.voice.channel
-            await ctx.send("Rozpoczynam monitorowanie emocji na kanale i dostosowywanie muzyki.")
-            self.monitor_channel_activity.start(ctx)
-
-        except discord.DiscordException as e:
-            await ctx.send("Wystąpił błąd podczas uruchamiania monitorowania.")
-            print(f"[ERROR] DiscordException: {e}")
-
-        except Exception as e:
-            await ctx.send("Wystąpił niespodziewany błąd. Spróbuj ponownie.")
-            print(f"[ERROR] Unexpected error: {e}")
+        self.is_monitoring = True
+        self.voice_channel = ctx.author.voice.channel
+        await ctx.send("Rozpoczynam monitorowanie aktywności na kanale głosowym.")
+        self.monitor_channel_activity.start(ctx)
 
     async def stop_monitoring(self, ctx):
-        """Zatrzymuje monitorowanie aktywności na kanale z kontrolą błędów."""
+        """Zatrzymuje monitorowanie aktywności."""
+        self.is_monitoring = False
+        self.monitor_channel_activity.stop()
+        await ctx.send("Zakończono monitorowanie aktywności i zatrzymano muzykę.")
+
+    def analyze_emotions(self, text):
+        """Analizuje emocje w wiadomościach tekstowych za pomocą angielskiego modelu."""
         try:
-            self.is_monitoring = False
-            self.monitor_channel_activity.stop()
-            if ctx.voice_client and ctx.voice_client.is_playing():
-                ctx.voice_client.stop()
-            await ctx.send("Zakończono monitorowanie emocji na kanale i zatrzymano muzykę.")
+            # Podział tekstu na fragmenty mieszczące się w limicie modelu
+            max_length = 512
+            chunks = [text[i:i + max_length] for i in range(0, len(text), max_length)]
 
-        except discord.DiscordException as e:
-            await ctx.send("Wystąpił błąd podczas zatrzymywania monitorowania.")
-            print(f"[ERROR] DiscordException: {e}")
+            # Analiza każdego fragmentu osobno
+            sentiments = []
+            for chunk in chunks:
+                result = self.sentiment_analyzer(chunk)
+                sentiments.append(result[0]['label'])
 
-        except Exception as e:
-            await ctx.send("Wystąpił niespodziewany błąd. Spróbuj ponownie.")
-            print(f"[ERROR] Unexpected error: {e}")
+            # Agregowanie wyników
+            if sentiments.count("POSITIVE") > sentiments.count("NEGATIVE"):
+                return "joy"
+            elif sentiments.count("NEGATIVE") > sentiments.count("POSITIVE"):
+                return "sadness"
+            else:
+                return "neutral"
 
-    async def analyze_emotions(self, text):
-        """Analizuje emocje na podstawie tekstu przy użyciu modelu AI."""
-        try:
-            # Używamy modelu do analizy emocji w tekście
-            emotions = self.emotion_classifier(text)
-            # Sortowanie wyników i wybór emocji z najwyższym prawdopodobieństwem
-            dominant_emotion = max(emotions[0], key=lambda x: x['score'])['label']
-            return dominant_emotion
         except Exception as e:
             print(f"[ERROR] Błąd analizy emocji: {e}")
             return None
 
     @tasks.loop(seconds=30)
     async def monitor_channel_activity(self, ctx):
-        """Monitoruje aktywność na kanale co 30 sekund i dostosowuje muzykę na podstawie analizy emocji."""
+        """Monitoruje aktywność na kanale tekstowym i dostosowuje muzykę."""
         if not self.is_monitoring:
             return
 
         try:
-            # Pobieramy ostatnie wiadomości z kanału
-            messages = await ctx.channel.history(limit=50).flatten()
+            # Pobieranie historii wiadomości
+            messages = [message async for message in ctx.channel.history(limit=50)]
             messages_text = " ".join([message.content for message in messages])
+            emotion = self.analyze_emotions(messages_text)
+            if emotion is None:
+                await ctx.send("Nie udało się rozpoznać emocji. Spróbuj ponownie później.")
+                return
 
-            # Analizujemy emocje w zebranych wiadomościach
-            emotion = await self.analyze_emotions(messages_text)
-
-            # Dostosowanie playlisty na podstawie emocji
+            # Dobieranie muzyki na podstawie emocji
             if emotion == "joy":
                 mood = "happy"
                 playlist = ["upbeat song 1", "upbeat song 2", "upbeat song 3"]
             elif emotion == "sadness":
                 mood = "calm"
                 playlist = ["calm song 1", "calm song 2", "calm song 3"]
-            elif emotion == "anger":
-                mood = "intense"
-                playlist = ["intense song 1", "intense song 2", "intense song 3"]
             else:
                 mood = "neutral"
                 playlist = ["neutral song 1", "neutral song 2", "neutral song 3"]
 
             await ctx.send(f"Rozpoznany nastrój: {mood}. Odtwarzam muzykę odpowiednią do {mood}.")
 
-            # Reset playlisty i odtworzenie dostosowanej muzyki
+            # Sprawdzanie playlist_manager
+            if self.playlist_manager is None:
+                await ctx.send("Błąd: Playlist manager nie został zainicjalizowany.")
+                print("[ERROR] Playlist manager is None.")
+                return
+
             await self.playlist_manager.reset()
             self.playlist_manager.add_songs(playlist)
             await self.playlist_manager.play_song(ctx)
 
-        except discord.DiscordException as e:
-            await ctx.send("Wystąpił błąd podczas monitorowania kanału.")
-            print(f"[ERROR] DiscordException: {e}")
-
         except Exception as e:
-            await ctx.send("Wystąpił niespodziewany błąd podczas monitorowania kanału.")
+            await ctx.send("Wystąpił błąd podczas monitorowania kanału.")
             print(f"[ERROR] Unexpected error: {e}")
+
