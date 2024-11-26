@@ -2,7 +2,7 @@ import discord
 from discord.ext import commands
 from single_play import send_song_selection, stop, pause, resume
 from playlist import PlaylistManager
-from mood_detection import MoodDetection  # Import MoodDetection
+from mood_detection import AIGameDetection  # Import MoodDetection
 from apikeys import BOTTOKEN  # Import tokenu bota
 
 intents = discord.Intents.default()
@@ -13,7 +13,7 @@ intents.voice_states = True
 
 bot = commands.Bot(command_prefix='!', intents=intents)
 bot.playlist = PlaylistManager(bot)
-bot.mood_detection = MoodDetection(bot, bot.playlist)  # Inicjalizacja MoodDetection
+bot.mood_detection = AIGameDetection(bot=bot)  # MoodDetection z lokalnym modelem
 
 # Komenda do odtwarzania pojedynczego utworu
 @bot.command(name='play')
@@ -82,12 +82,12 @@ async def leave_command(ctx):
 # Komendy do wykrywania emocji
 @bot.command(name='start_context_music')
 async def start_context_music(ctx):
-    """Uruchamia monitorowanie aktywności na kanale."""
+    """Uruchamia monitorowanie aktywności na kanale głosowym."""
     await bot.mood_detection.start_monitoring(ctx)
 
 @bot.command(name='stop_context_music')
 async def stop_context_music(ctx):
-    """Zatrzymuje monitorowanie aktywności na kanale."""
+    """Zatrzymuje monitorowanie aktywności na kanale głosowym."""
     await bot.mood_detection.stop_monitoring(ctx)
 
 # Event informujący o błędnych komendach
