@@ -27,14 +27,40 @@ allowed_channel_ids = [1297985734376165437, 1309723026283171891]  # Wstaw ID doz
 async def hello(ctx):
     await ctx.send("Hello, I'm a bot!")
 
-@bot.command(name="ask")
-async def ask(ctx, *, message):
+async def detect_intent(message_content):
+    # Sprawdzenie, czy wiadomość zawiera link do YouTube
+    if "youtube.com/watch?v=" in message_content or "youtu.be/" in message_content:
+        return "summarise_youtube"
+    
+    # Rozpoznanie innych typów wiadomości
+    response = ollama.chat(model='llama3.2', messages=[
+        {
+            'role': 'system',
+            'content': '''
+            You are an AI assistant that classifies user messages into intents such as:
+            - "ask_question" for questions.
+            - "translate" for translation requests.
+            - "summarise" for summarization requests.
+            - "weather" for weather-related queries.
+            Respond with just the intent name.
+            ''',
+        },
+        {
+            'role': 'user',
+            'content': f"Message: {message_content}",
+        },
+    ])
+    try:
+        return response['message']['content'].strip().lower()
+    except KeyError:
+        return "unknown"
+
+async def ask(channel, question):
     # Sprawdź, czy wiadomość pochodzi z jednego z dozwolonych kanałów
-    if ctx.channel.id not in allowed_channel_ids:
-        # Tworzenie klikalnych odnośników do kanałów
+    if channel.id not in allowed_channel_ids:
         allowed_channels_links = [f"<#{ch_id}>" for ch_id in allowed_channel_ids]
         channels_message = ", ".join(allowed_channels_links)
-        await ctx.send(f"This command can only be used in the following channels: {channels_message}.")
+        await channel.send(f"This command can only be used in the following channels: {channels_message}.")
         return
 
     # Uzyskanie odpowiedzi z ollama
@@ -45,36 +71,40 @@ async def ask(ctx, *, message):
         },
         {
             'role': 'user',
-            'content': message,
+            'content': question,
         },
     ])
 
     # Sprawdzenie, czy odpowiedź jest poprawna i pobranie tekstu
     try:
-        full_response = response['message']['content']  # Upewnij się, że 'content' to właściwe pole
+        full_response = response['message']['content']
     except KeyError:
-        await ctx.send("There was an error retrieving the response.")
+        await channel.send("There was an error retrieving the response.")
         return
 
-    # Podział odpowiedzi, jeśli jest dłuższa niż 2000 znaków
+    # Podział odpowiedzi na fragmenty
     if len(full_response) > 2000:
         for i in range(0, len(full_response), 2000):
-            await ctx.send(full_response[i:i + 2000])
+            await channel.send(full_response[i:i + 2000])
     else:
-        await ctx.send(full_response)
+        await channel.send(full_response)
 
+# Komenda `ask` wywołująca funkcję obsługującą
+@bot.command(name="ask")
+async def ask_command(ctx, *, question):
+    await ask(ctx.channel, question)
 
-@bot.command(name="summarise")
-async def summarise(ctx):
+# @bot.command(name="summarise")
+async def summarise(channel):
     # Sprawdź, czy wiadomość pochodzi z jednego z dozwolonych kanałów
-    if ctx.channel.id not in allowed_channel_ids:
+    if channel.channel.id not in allowed_channel_ids:
         # Tworzenie klikalnych odnośników do kanałów
         allowed_channels_links = [f"<#{ch_id}>" for ch_id in allowed_channel_ids]
         channels_message = ", ".join(allowed_channels_links)
-        await ctx.send(f"This command can only be used in the following channels: {channels_message}.")
+        await channel.send(f"This command can only be used in the following channels: {channels_message}.")
         return
 
-    msgs = [ message.content async for message in ctx.channel.history(limit=10)]
+    msgs = [ message.content async for message in channel.history(limit=10)]
 
     summarise_prompt = f"""
         Summarise the following messages delimited by 3 backticks:
@@ -93,19 +123,19 @@ async def summarise(ctx):
             'content': summarise_prompt,
         },
     ])
-    await ctx.send(response['message']['content'])
+    await channel.send(response['message']['content'])
 
-@bot.command(name="summarise_youtube")
-async def summarise_youtube(ctx, url):
+# @bot.command(name="summarise_youtube")
+async def summarise_youtube(channel, url):
     # Sprawdź, czy wiadomość pochodzi z jednego z dozwolonych kanałów
-    if ctx.channel.id not in allowed_channel_ids:
+    if channel.id not in allowed_channel_ids:
         # Tworzenie klikalnych odnośników do kanałów
         allowed_channels_links = [f"<#{ch_id}>" for ch_id in allowed_channel_ids]
         channels_message = ", ".join(allowed_channels_links)
-        await ctx.send(f"This command can only be used in the following channels: {channels_message}.")
+        await channel.send(f"This command can only be used in the following channels: {channels_message}.")
         return
 
-    await ctx.send("Fetching and summarising YouTube video...") # Send message indicating the start of the process
+    await channel.send("Fetching and summarising YouTube video...") # Send message indicating the start of the process
 
     # Extract video transcript using youtube_transcript_api
     video_id = url.split("v=")[1] # Extract the video ID from the URL
@@ -127,7 +157,7 @@ async def summarise_youtube(ctx, url):
         chunks = [full_transcript[i * chunk_size : (i + 1) * chunk_size] for i in range(num_chunks)] # Split the transcript in the chunks
 
         async def process_chunk(chunk, chunk_num):
-            await ctx.send(f"Extracting summary of chunk {chunk_num} of {num_chunks} ...") # Send message indicating the current chunk
+            await channel.send(f"Extracting summary of chunk {chunk_num} of {num_chunks} ...") # Send message indicating the current chunk
 
             response = ollama.chat(model='llama3.2', messages=[
                 {
@@ -153,7 +183,7 @@ async def summarise_youtube(ctx, url):
             return response['message']['content'] # Return the summary content from the response
         for i, chunk in enumerate(chunks, start=1): # Iterate over each chunk
             summary = await process_chunk(chunk, i) # Process the chunk and get the summary
-            await ctx.send(summary) # Send the summary as a message
+            await channel.send(summary) # Send the summary as a message
 
     else:
         response = ollama.chat(model='llama3.2', messages=[
@@ -170,17 +200,19 @@ async def summarise_youtube(ctx, url):
             },
         ])
         final_summary = response['message']['content'] # Get the final summary as a message
-        await ctx.send(final_summary) # Send the final summary as a message
+        await channel.send(final_summary) # Send the final summary as a message
 
-
+@bot.command(name="summarise_youtube")
+async def summarise_youtube_command(ctx, url):
+    await summarise_youtube(ctx.channel, url)
 
 @bot.event
 async def on_message(message):
     # Ignoruj wiadomości wysłane przez bota
     if message.author.bot:
         return
-    
-    # Wysyłanie wiadomości do AI w celu analizy
+
+    # **1. Moderacja wiadomości**
     response = ollama.chat(model='llama3.2', messages=[
         {
             'role': 'system',
@@ -190,8 +222,9 @@ async def on_message(message):
             2. Hate speech.
             3. Spam or unwanted advertising.
             4. Links to malicious websites.
-            5. Classify messages in additional languages such as Polish.
-            Classify the following message as "acceptable" or "unacceptable". Otherwise, respond with "clean".
+            Classify the message as:
+            - "acceptable" if the message meets all guidelines.
+            - "unacceptable" if the message violates any policy.
             ''',
         },
         {
@@ -200,18 +233,55 @@ async def on_message(message):
         },
     ])
 
-    # Obsługa odpowiedzi z AI
     try:
-        moderation_result = response['message']['content']
-        if "unacceptable" in moderation_result.lower():
-            await message.delete()  # Usuń niepożądaną wiadomość
-            await message.channel.send(f"{message.author.mention}, your message was removed due to policy violations.")
+        moderation_result = response['message']['content'].strip().lower()
+        if "unacceptable" in moderation_result:
+            await message.delete()
+            await message.channel.send(
+                f"{message.author.mention}, your message was removed due to policy violations."
+            )
+            return
     except KeyError:
         print("AI moderation failed.")
-    
+
+    # Sprawdź, czy wiadomość pochodzi z dozwolonego kanału
+    if message.channel.id not in allowed_channel_ids:
+        return  # Ignoruj wiadomości spoza dozwolonych kanałów
+
+    # Skip command-prefixed messages
+    if message.content.startswith(bot.command_prefix):
+        await bot.process_commands(message)
+        return
+
+    # **2. Rozpoznawanie intencji**
+    # Rozpoznaj intencję użytkownika
+    intent = await detect_intent(message.content)
+
+    # Obsługa intencji
+    if intent == "ask_question":
+        await message.channel.send("Wykryto pytanie! Odpowiadam...")
+        await ask(message.channel, message.content)
+
+    elif intent == "translate":
+        await message.channel.send("Wykryto zapytanie o tłumaczenie! Funkcja tłumaczenia wkrótce zostanie zaimplementowana.")
+
+    elif intent == "summarise":
+        await message.channel.send("Wykryto prośbę o streszczenie! Próbuję podsumować ostatnie wiadomości...")
+        await summarise(message.channel)
+
+    elif intent == "summarise_youtube":
+        await message.channel.send("Wykryto link do filmu na YouTube! Próbuję pobrać i streścić zawartość...")
+        await summarise_youtube(message.channel, message.content)
+
+    elif intent == "weather":
+        await message.channel.send("Wykryto zapytanie o pogodę! Niestety, funkcja pogody nie jest jeszcze dodana.")
+
+    else:
+        await message.channel.send("Nie rozpoznano intencji, ale możesz użyć komendy `/ask`, aby uzyskać odpowiedź.")
+
+    # Przetwarzanie standardowych komend
     await bot.process_commands(message)
 
-    print("Odpowiedź AI:", response)
 
 # Uruchomienie bota z tokenem
 bot.run(CHATBOTTOKEN)
