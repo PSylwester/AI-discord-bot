@@ -4,6 +4,13 @@ from discord.ext import commands
 from apikeys import CHATBOTTOKEN
 import ollama
 
+import json
+import requests
+from discord.ext import commands
+
+# Klucz API OpenWeatherMap
+OPENWEATHER_API_KEY = "80feaa8566dbc2d5175277042f93881b"
+
 from youtube_transcript_api import YouTubeTranscriptApi
 import tiktoken
 
@@ -27,22 +34,47 @@ allowed_channel_ids = [1297985734376165437, 1309723026283171891]  # Wstaw ID doz
 async def hello(ctx):
     await ctx.send("Hello, I'm a bot!")
 
+import spacy
+
+# Ładowanie modelu spaCy dla języka polskiego
+nlp = spacy.load("pl_core_news_sm")
+
+# Funkcja do konwersji miasta na mianownik
+def get_city_in_nominative(city_name):
+    doc = nlp(city_name)
+    for token in doc:
+        if token.pos_ == "PROPN":  # Sprawdzamy, czy to jest nazwa własna (miasto)
+            return token.lemma_  # Lemmatyzacja, zwróci formę mianownika
+    return city_name  # Jeśli nie uda się rozpoznać miasta, zwróć oryginalne słowo
+
 async def detect_intent(message_content):
+    import re
+
     # Sprawdzenie, czy wiadomość zawiera link do YouTube
-    if "youtube.com/watch?v=" in message_content or "youtu.be/" in message_content:
-        return "summarise_youtube"
-    
-    # Rozpoznanie innych typów wiadomości
+    youtube_link_pattern = r"(https?://(?:www\.)?(?:youtube\.com/watch\?v=|youtu\.be/)[^\s]+)"
+    youtube_match = re.search(youtube_link_pattern, message_content)
+
+    if youtube_match:
+        youtube_url = youtube_match.group(0)  # Pobierz pierwszy pasujący link
+        print(f"[DETECT INTENT] YouTube link detected: {youtube_url}")
+        return {"intent": "summarise_youtube", "data": {"url": youtube_url}}
+
+    print(f"[DETECT INTENT] Processing message: {message_content}")
+
+    # Rozpoznanie intencji za pomocą modelu AI
     response = ollama.chat(model='llama3.2', messages=[
         {
             'role': 'system',
             'content': '''
             You are an AI assistant that classifies user messages into intents such as:
-            - "ask_question" for questions.
-            - "translate" for translation requests.
-            - "summarise" for summarization requests.
+            - "ask_question" for general questions.
+            - "summarise_youtube" for summarization requests of YouTube videos.
             - "weather" for weather-related queries.
-            Respond with just the intent name.
+            
+            When detecting a "weather" intent, also extract the city if mentioned.
+            Respond in the following JSON format and no other:
+            {"intent": "<intent_name>", "data": {"city": "<city_name>"}}
+            If no city is mentioned, set "city" to null.
             ''',
         },
         {
@@ -50,10 +82,16 @@ async def detect_intent(message_content):
             'content': f"Message: {message_content}",
         },
     ])
+    
     try:
-        return response['message']['content'].strip().lower()
-    except KeyError:
-        return "unknown"
+        result = response['message']['content'].strip()
+        print(f"[DETECT INTENT] Raw response: {result}")
+        return json.loads(result)  # Oczekujemy formatu JSON od modelu
+    except (KeyError, json.JSONDecodeError) as e:
+        print(f"[DETECT INTENT] Error: {e}")
+        return {"intent": "unknown", "data": None}
+
+
 
 async def ask(channel, question):
     # Sprawdź, czy wiadomość pochodzi z jednego z dozwolonych kanałów
@@ -206,6 +244,49 @@ async def summarise_youtube(channel, url):
 async def summarise_youtube_command(ctx, url):
     await summarise_youtube(ctx.channel, url)
 
+
+async def weather(channel, city: str):
+    """
+    Sprawdza pogodę w podanym mieście i wysyła odpowiedź na kanał.
+    """
+    print(f"[WEATHER] Fetching weather for city: {city}")
+    try:
+        # Endpoint API OpenWeatherMap
+        url = f"http://api.openweathermap.org/data/2.5/weather?q={city}&appid={OPENWEATHER_API_KEY}&units=metric"
+        response = requests.get(url)
+        data = response.json()
+        
+        # Sprawdzenie statusu odpowiedzi
+        if response.status_code == 200:
+            print(f"[WEATHER] API Response: {data}")
+            # Pobranie danych pogodowych
+            weather_description = data["weather"][0]["description"]
+            temperature = data["main"]["temp"]
+            feels_like = data["main"]["feels_like"]
+            humidity = data["main"]["humidity"]
+            wind_speed = data["wind"]["speed"]
+
+            # Przygotowanie wiadomości
+            message = (
+                f"**Pogoda w {city.title()}:**\n"
+                f"- Opis: {weather_description.capitalize()}\n"
+                f"- Temperatura: {temperature}°C (odczuwalna: {feels_like}°C)\n"
+                f"- Wilgotność: {humidity}%\n"
+                f"- Prędkość wiatru: {wind_speed} m/s"
+            )
+        else:
+            print(f"[WEATHER] Failed to fetch weather. Status code: {response.status_code}, Response: {data}")
+            # Obsługa błędu (np. nie znaleziono miasta)
+            message = f"Nie udało się znaleźć pogody dla miasta **{city}**. Sprawdź, czy nazwa jest poprawna."
+
+    except Exception as e:
+        # Obsługa błędów
+        print(f"[WEATHER] Error: {e}")
+        message = f"Wystąpił błąd podczas sprawdzania pogody: {e}"
+
+    # Wysyłanie odpowiedzi na Discordzie
+    await channel.send(message)
+    
 @bot.event
 async def on_message(message):
     # Ignoruj wiadomości wysłane przez bota
@@ -255,27 +336,32 @@ async def on_message(message):
 
     # **2. Rozpoznawanie intencji**
     # Rozpoznaj intencję użytkownika
-    intent = await detect_intent(message.content)
+    intent_result  = await detect_intent(message.content)
+    intent = intent_result.get("intent", "unknown")
+    city = intent_result.get("data", {}).get("city", None)
+
+    print(f"[INTENT HANDLER] Detected intent: {intent}, City: {city}")
 
     # Obsługa intencji
     if intent == "ask_question":
         await message.channel.send("Wykryto pytanie! Odpowiadam...")
         await ask(message.channel, message.content)
 
-    elif intent == "translate":
-        await message.channel.send("Wykryto zapytanie o tłumaczenie! Funkcja tłumaczenia wkrótce zostanie zaimplementowana.")
-
-    elif intent == "summarise":
-        await message.channel.send("Wykryto prośbę o streszczenie! Próbuję podsumować ostatnie wiadomości...")
-        await summarise(message.channel)
-
     elif intent == "summarise_youtube":
         await message.channel.send("Wykryto link do filmu na YouTube! Próbuję pobrać i streścić zawartość...")
         await summarise_youtube(message.channel, message.content)
 
     elif intent == "weather":
-        await message.channel.send("Wykryto zapytanie o pogodę! Niestety, funkcja pogody nie jest jeszcze dodana.")
-
+        await message.channel.send("Wykryto zapytanie o pogodę!")
+        if city:
+            city = get_city_in_nominative(city)
+            print(f"[INTENT HANDLER] Extracted city: {city}")
+            await message.channel.send(f"Fetching weather information for {city}...")
+            await weather(message.channel, city)
+        else:
+            await message.channel.send("I detected a weather query, but you need to specify a city. For example: 'What is the weather in London?'")
+            print("[INTENT HANDLER] No city extracted from the message.")
+    
     else:
         await message.channel.send("Nie rozpoznano intencji, ale możesz użyć komendy `/ask`, aby uzyskać odpowiedź.")
 
