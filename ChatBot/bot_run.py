@@ -14,6 +14,8 @@ OPENWEATHER_API_KEY = "80feaa8566dbc2d5175277042f93881b"
 from youtube_transcript_api import YouTubeTranscriptApi
 import tiktoken
 
+from collections import deque
+
 # Ustawienie intents
 intents = discord.Intents.default()
 intents.message_content = True  # Dodaj tę linię, aby bot mógł odczytywać treści wiadomości
@@ -325,6 +327,13 @@ async def on_message(message):
     except KeyError:
         print("AI moderation failed.")
 
+    # Kanał dedykowany dla rozmów z AI
+    ai_conversation_channel_id = 1317140568240947270  # id kanału dla rozmowy ai <-> users
+
+    if message.channel.id == ai_conversation_channel_id:
+        await handle_ai_conversation(message.channel, message.content)
+        return
+
     # Sprawdź, czy wiadomość pochodzi z dozwolonego kanału
     if message.channel.id not in allowed_channel_ids:
         return  # Ignoruj wiadomości spoza dozwolonych kanałów
@@ -367,6 +376,51 @@ async def on_message(message):
 
     # Przetwarzanie standardowych komend
     await bot.process_commands(message)
+
+
+# Historia rozmów: przechowuje ostatnie 10 wiadomości na kanał
+conversation_history = {}
+
+async def handle_ai_conversation(channel, message_content):
+    """
+    Funkcja obsługująca wspólną rozmowę z AI na dedykowanym kanale.
+
+    Args:
+        channel: Kanał, na którym odbywa się rozmowa.
+        message_content: Treść wiadomości od użytkownika.
+    """
+    global conversation_history
+
+    # Pobierz historię rozmowy dla kanału lub zainicjalizuj nową
+    if channel.id not in conversation_history:
+        conversation_history[channel.id] = deque(maxlen=20)
+
+    channel_history = conversation_history[channel.id]
+
+    # Dodaj wiadomość użytkownika do historii
+    channel_history.append({"role": "user", "content": message_content})
+
+    # Przygotowanie kontekstu dla modelu AI
+    context = list(channel_history)
+
+    # Wygenerowanie odpowiedzi modelu AI
+    response = ollama.chat(
+        model='llama3.2',
+        messages=context
+    )
+
+    # Przechwycenie odpowiedzi
+    bot_response = response['message']['content']
+    await channel.send(bot_response)
+
+    # Dodaj odpowiedź bota do historii
+    channel_history.append({"role": "bot", "content": bot_response})
+
+async def reset_conversation_history(channel_id):
+    """Resetuje historię rozmowy dla danego kanału."""
+    global conversation_history
+    if channel_id in conversation_history:
+        conversation_history[channel_id].clear()
 
 
 # Uruchomienie bota z tokenem
