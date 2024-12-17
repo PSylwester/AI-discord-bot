@@ -2,7 +2,6 @@ import discord
 from discord.ext import tasks
 from transformers import AutoModelForSequenceClassification, AutoTokenizer, pipeline
 import yt_dlp as youtube_dl
-import torch
 
 class AIGameDetection:
     def __init__(self, bot):

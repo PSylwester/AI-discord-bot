@@ -3,35 +3,29 @@ from transformers import AutoModelForSequenceClassification, AutoTokenizer, Trai
 from datasets import Dataset
 from evaluate import load
 
-# Funkcja wczytująca dane z plików Python
-def load_data_from_files(file_names):
-    data = []
-    for file_name in file_names:
-        module = importlib.import_module(file_name)
-        data.extend(module.data)
-    return data
-
-# Lista plików z danymi
-files = ["shooter_data.py", "strategy_data.py", "rpg_data.py", "horror.py", "general"]
-
 # Wczytanie danych z plików
-data = load_data_from_files(files)
+from rpg_data import rpg_data
+from shooter_data import shooter_data
+from strategy_data import strategy_data
+from horror_data import horror_data
+
+data = rpg_data + shooter_data + strategy_data + horror_data
 
 # Przygotowanie zestawu danych
 dataset = Dataset.from_list(data).train_test_split(test_size=0.2)
 
+# Mapowanie etykiet
 label_mapping = {
-    "shooter": 0,
-    "strategy": 1,
-    "rpg": 2,
+    "rpg": 0,
+    "shooter": 1,
+    "strategy": 2,
     "horror": 3,
-    "general": 4,
 }
 
 # Wczytaj model i tokenizer
 model_name = "bert-base-uncased"
 tokenizer = AutoTokenizer.from_pretrained(model_name)
-model = AutoModelForSequenceClassification.from_pretrained(model_name, num_labels=5)
+model = AutoModelForSequenceClassification.from_pretrained(model_name, num_labels=len(label_mapping))
 
 # Tokenizacja danych
 def preprocess(examples):
@@ -52,8 +46,8 @@ def compute_metrics(eval_pred):
 # Ustawienia trenowania
 training_args = TrainingArguments(
     output_dir="./results",
-    eval_strategy="steps",
-    save_steps=10,
+    evaluation_strategy="steps",
+    save_steps=100,
     per_device_train_batch_size=4,
     per_device_eval_batch_size=4,
     num_train_epochs=10,
