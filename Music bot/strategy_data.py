@@ -998,6 +998,5 @@ strategy_data = [
     {"text": "Fighting for control of interstellar trade routes in Galactic Civilizations IV: Trade Wars", "expected_label": "strategy"},
     {"text": "Defending magical realms from invaders in SpellForce 3: Magic Defenders", "expected_label": "strategy"},
     {"text": "Constructing futuristic cities in Cities: Skylines - Industrial Expansion", "expected_label": "strategy"},
-    {"text": "Leading armies in massive medieval battles in Total War: Medieval III", "expected_label": "strategy"},
-    {"text": "Building underwater colonies in Aquanox: Submarine Builders", "expected_label": "strategy"},
+    {"text": "Leading armies in massive medieval battles in Total War: Medieval III", "expected_label": "strategy"}
    ]
