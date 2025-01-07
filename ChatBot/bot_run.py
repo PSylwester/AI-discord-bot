@@ -10,7 +10,6 @@ from discord.ext import commands
 
 # Klucz API OpenWeatherMap
 OPENWEATHER_API_KEY = "80feaa8566dbc2d5175277042f93881b"
-
 from youtube_transcript_api import YouTubeTranscriptApi
 import tiktoken
 
@@ -167,80 +166,81 @@ async def summarise(channel):
 
 # @bot.command(name="summarise_youtube")
 async def summarise_youtube(channel, url):
-    # Sprawdź, czy wiadomość pochodzi z jednego z dozwolonych kanałów
     if channel.id not in allowed_channel_ids:
-        # Tworzenie klikalnych odnośników do kanałów
         allowed_channels_links = [f"<#{ch_id}>" for ch_id in allowed_channel_ids]
         channels_message = ", ".join(allowed_channels_links)
         await channel.send(f"This command can only be used in the following channels: {channels_message}.")
         return
 
-    await channel.send("Fetching and summarising YouTube video...") # Send message indicating the start of the process
+    await channel.send("Fetching and summarising YouTube video...")
 
-    # Extract video transcript using youtube_transcript_api
-    video_id = url.split("v=")[1] # Extract the video ID from the URL
-    transcript_list = YouTubeTranscriptApi.get_transcript(video_id) # Fetch the transcript using the video ID
-    full_transcript = " ".join([item['text'] for item in transcript_list]) # Join the transcript text into a single string
+    video_id = url.split("v=")[1]
+    try:
+        # Fetch the transcript in Polish
+        transcript_list = YouTubeTranscriptApi.get_transcript(video_id, languages=['en', 'pl', 'de', 'fr'])
+        full_transcript = " ".join([item['text'] for item in transcript_list])
 
-    # Check the length of the transcript in tokens using tiktoken
-    encoding = tiktoken.encoding_for_model("gpt-3.5-turbo") # Get the encoding for the specified model
-    tokens = encoding.encode(full_transcript) # Encode the transcript into tokens
-    num_tokens = len(tokens) # Get the number of tokens
+        encoding = tiktoken.encoding_for_model("gpt-3.5-turbo")
+        tokens = encoding.encode(full_transcript)
+        num_tokens = len(tokens)
 
-    print(num_tokens) # Print the number of tokens
-    # Define the chunk size
-    chunk_size = 7000 # Set the chunk size to 7000 tokens
+        print(num_tokens)
 
-    # If the number of tokens exceeds the chunk size, split into chunks
-    if num_tokens > chunk_size:
-        num_chunks = (num_tokens + chunk_size - 1) // chunk_size # Calculate the number of chunks
-        chunks = [full_transcript[i * chunk_size : (i + 1) * chunk_size] for i in range(num_chunks)] # Split the transcript in the chunks
+        chunk_size = 7000
 
-        async def process_chunk(chunk, chunk_num):
-            await channel.send(f"Extracting summary of chunk {chunk_num} of {num_chunks} ...") # Send message indicating the current chunk
+        if num_tokens > chunk_size:
+            num_chunks = (num_tokens + chunk_size - 1) // chunk_size
+            chunks = [full_transcript[i * chunk_size: (i + 1) * chunk_size] for i in range(num_chunks)]
 
+            async def process_chunk(chunk, chunk_num):
+                await channel.send(f"Extracting summary of chunk {chunk_num} of {num_chunks} ...")
+                response = ollama.chat(model='llama3.2', messages=[
+                    {
+                        'role': 'system',
+                        'content': 'You are a helpful assistant who summarises the transcript of a YouTube video in bullet points concisely in no more than 1000 words.',
+                    },
+                    {
+                        'role': 'user',
+                        'content': f'''
+                        Please provide a summary for the following chunk of the Youtube video transcript:
+                        1. Start with a high-level title for this chunk.
+                        2. Provide 6-8 bullet points summarizing the key points in this chunk.
+                        3. Start with the title of the chunk and then provide the summary in bullet points instead of using "here's the summary of the transcript".
+                        4. No need to use concluding remarks at the end.
+                        5. Return the response in markdown format.
+                        6. Add a divider at the end in markdown format.
+
+                        Chunk:
+                        {chunk}
+                        ''',
+                    },
+                ])
+                return response['message']['content']
+
+            for i, chunk in enumerate(chunks, start=1):
+                summary = await process_chunk(chunk, i)
+                await channel.send(summary)
+
+        else:
             response = ollama.chat(model='llama3.2', messages=[
                 {
                     'role': 'system',
-                    'content': 'You are a helpful assistant who summarises the transcript of a YouTube video in bullet points concisely in no more than 1000 words.',
+                    'content': '''
+                        You are a helpful assistant who provides
+                        a concise summary of the provided YouTube video transcript in bullet points concisely.
+                    ''',
                 },
                 {
                     'role': 'user',
-                    'content': f'''
-                    Please provide a summary for the following chunk of the Youtube video transcript:
-                    1. Start with a high-level title for this chunk.
-                    2. Provide 6-8 bullet points summarizing the key points in this chunk.
-                    3. Start with the title of the chunk and then provide the summary in bullet points instead of using "here's the summary of the transcript".
-                    4. No need to use concluding remarks at the end.
-                    5. Return the response in markdown format.
-                    6. Add a devider at the end in markdown format.
-
-                    Chunk:
-                    {chunk}
-                    ''',
+                    'content': full_transcript,
                 },
             ])
-            return response['message']['content'] # Return the summary content from the response
-        for i, chunk in enumerate(chunks, start=1): # Iterate over each chunk
-            summary = await process_chunk(chunk, i) # Process the chunk and get the summary
-            await channel.send(summary) # Send the summary as a message
+            final_summary = response['message']['content']
+            await channel.send(final_summary)
 
-    else:
-        response = ollama.chat(model='llama3.2', messages=[
-            {
-                'role': 'system',
-                'content': '''
-                    You are a helpful assistant who provides
-                    a concise summary of the provided YouTube video transcript in bullet points concisely.
-                ''',
-            },
-            {
-                'role': 'user',
-                'content': full_transcript,
-            },
-        ])
-        final_summary = response['message']['content'] # Get the final summary as a message
-        await channel.send(final_summary) # Send the final summary as a message
+    except Exception as e:
+        await channel.send(f"Error: {str(e)}")
+
 
 @bot.command(name="summarise_youtube")
 async def summarise_youtube_command(ctx, url):
