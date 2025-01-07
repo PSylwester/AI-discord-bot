@@ -10,6 +10,7 @@ class AIGameDetection:
         self.is_monitoring = False
         self.voice_channel = None
         self.current_playlist = []
+        self.last_checked = None  # Znacznik czasu
 
         # Ładowanie lokalnego modelu BERT
         model_path = "./models/bert_custom_final"  # Upewnij się, że ścieżka jest poprawna
@@ -25,6 +26,7 @@ class AIGameDetection:
 
         self.is_monitoring = True
         self.voice_channel = ctx.author.voice.channel
+        self.last_checked = ctx.message.created_at  # Ustaw czas rozpoczęcia monitorowania
         await ctx.send(f"Rozpoczynam monitorowanie aktywności na kanale głosowym: {self.voice_channel.name}.")
         self.monitor_channel_activity.start(ctx)
 
@@ -120,14 +122,17 @@ class AIGameDetection:
             return
 
         try:
-            messages = [message async for message in ctx.channel.history(limit=10)]
+            # Pobierz wiadomości wysłane po ostatnim sprawdzonym czasie
+            messages = [message async for message in ctx.channel.history(after=self.last_checked)]
+            self.last_checked = discord.utils.utcnow()  # Aktualizuj znacznik czasu
+
+            # Łącz tekst z wiadomości
             messages_text = " ".join([message.content for message in messages])
 
             # Klasyfikacja gry
             game_type = self.classify_game_type(messages_text)
             print(f"Wykryty gatunek gry: {game_type}")
 
-            # Sprawdzenie zmiany typu gry
             if self.current_playlist and self.current_playlist[0] == game_type:
                 print(f"Typ gry ({game_type}) nie zmienił się. Nie zmieniam muzyki.")
                 return
@@ -136,7 +141,6 @@ class AIGameDetection:
             song_query = self.select_music_for_game(game_type)
             song_url, song_title = self.search_song_with_title(song_query)
 
-            # Odtwarzanie muzyki
             if song_url:
                 self.current_playlist = [game_type]
                 await self.play_song(ctx, song_url)
