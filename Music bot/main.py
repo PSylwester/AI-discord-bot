@@ -41,9 +41,16 @@ async def pause_command(ctx):
 async def resume_command(ctx):
     await resume(ctx)
 
+# Komenda do restartu bota
+@bot.command(name='restart')
+async def restart_command(ctx):
+    await ctx.send("Restartuję bota...")
+    await bot.close()
+
 # Komendy do zarządzania playlistą
 @bot.command(name='create_list')
 async def create_playlist_command(ctx, *, query: str = None):
+    """Create list"""
     if not query:
         await ctx.send("Nie podałeś zapytania do utworzenia playlisty. Użyj komendy w formacie: `!create_list <nazwa utworu lub artysty>`")
         return
@@ -51,6 +58,7 @@ async def create_playlist_command(ctx, *, query: str = None):
 
 @bot.command(name='play_list')
 async def play_list_command(ctx):
+    """Play create list"""
     if not ctx.author.voice:
         await ctx.send("Musisz być na kanale głosowym, aby odtwarzać muzykę.")
         return
@@ -63,6 +71,7 @@ async def play_list_command(ctx):
 
 @bot.command(name='stop_list')
 async def stop_list_command(ctx):
+    """Stop list"""
     if ctx.voice_client and ctx.voice_client.is_playing():
         ctx.voice_client.stop()
     bot.playlist.reset()
@@ -71,23 +80,43 @@ async def stop_list_command(ctx):
 # Komenda do opuszczania kanału głosowego
 @bot.command(name='leave')
 async def leave_command(ctx):
-    voice_client = ctx.voice_client
-    if voice_client and voice_client.is_connected():
-        await voice_client.disconnect()
-        bot.playlist.reset()  # Wyczyść playlistę po opuszczeniu kanału
-        await ctx.send("Opuszczam kanał głosowy i czyszczę pamięć playlisty.")
-    else:
-        await ctx.send("Nie jestem na żadnym kanale głosowym.")
+    """Delete bot from channel"""
+    try:
+        voice_client = ctx.voice_client
+
+        # Zatrzymaj monitorowanie aktywności, jeśli działa
+        if bot.mood_detection.is_monitoring:
+            bot.mood_detection.is_monitoring = False
+            bot.mood_detection.monitor_channel_activity.cancel()
+            await ctx.send("Zatrzymano monitorowanie aktywności na kanale.")
+
+        # Rozłącz bota z kanału głosowego
+        if voice_client and voice_client.is_connected():
+            if voice_client.is_playing():
+                voice_client.stop()  # Zatrzymanie bieżącego odtwarzania
+            await voice_client.disconnect()
+            bot.playlist.reset()
+            await ctx.send("Opuszczam kanał głosowy i czyszczę pamięć playlisty.")
+        else:
+            await ctx.send("Nie jestem na żadnym kanale głosowym.")
+
+        # Wyślij wiadomość o wyłączeniu bota
+        await ctx.send("Wyłączam bota. Do zobaczenia!")
+
+        # Zamknij bota
+        await bot.close()
+    except Exception as e:
+        print(f"[ERROR] Wystąpił błąd w leave_command: {e}")
 
 # Komendy do wykrywania emocji
 @bot.command(name='start_context_music')
 async def start_context_music(ctx):
-    """Uruchamia monitorowanie aktywności na kanale głosowym."""
+    """Starts activity monitoring on the voice channel."""
     await bot.mood_detection.start_monitoring(ctx)
 
 @bot.command(name='stop_context_music')
 async def stop_context_music(ctx):
-    """Zatrzymuje monitorowanie aktywności na kanale głosowym."""
+    """Stops activity monitoring on the voice channel."""
     await bot.mood_detection.stop_monitoring(ctx)
 
 # Event informujący o błędnych komendach

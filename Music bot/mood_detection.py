@@ -64,7 +64,6 @@ class AIGameDetection:
             "shooter": "intense action music",
             "strategy": "calm strategy music",
             "rpg": "epic fantasy music",
-            "horror": "horror suspense music",
             "general": "relaxing gaming music"
         }
         return game_music_map.get(game_type, "general gaming music")
@@ -95,20 +94,24 @@ class AIGameDetection:
                 try:
                     if ctx.voice_client.is_playing():
                         ctx.voice_client.stop()
+
                     ffmpeg_options = {
-                        'options': '-vn -reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5'
+                        'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5',
+                        'options': '-vn'
                     }
                     audio_source = discord.FFmpegPCMAudio(url, **ffmpeg_options)
                     ctx.voice_client.play(audio_source)
                     print(f"Rozpoczynam odtwarzanie: {url}")
                     return  # Sukces
+
                 except Exception as e:
                     print(f"[ERROR] Próba {attempt + 1}/{retries} nie powiodła się: {e}")
-                    await asyncio.sleep(2)  # Czekaj przed kolejną próbą
-            await ctx.send("Nie udało się odtworzyć utworu po kilku próbach.")
+                    await asyncio.sleep(2)
+
+            await ctx.send("❌ Nie udało się odtworzyć utworu po kilku próbach.")
         except Exception as e:
             print(f"[ERROR] Nie udało się odtworzyć utworu: {e}")
-            await ctx.send(f"❌ Błąd podczas odtwarzania utworu: {e}")
+            await ctx.send(f"❌ Błąd podczas odtwarzania: {e}")
 
     @tasks.loop(seconds=30)
     async def monitor_channel_activity(self, ctx):
@@ -117,7 +120,7 @@ class AIGameDetection:
             return
 
         try:
-            messages = [message async for message in ctx.channel.history(limit=3)]
+            messages = [message async for message in ctx.channel.history(limit=10)]
             messages_text = " ".join([message.content for message in messages])
 
             # Klasyfikacja gry
