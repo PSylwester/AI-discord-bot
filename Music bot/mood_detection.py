@@ -32,20 +32,11 @@ class AIGameDetection:
         self.monitor_channel_activity.start(ctx)
 
     async def stop_monitoring(self, ctx):
+        """Zatrzymuje monitorowanie aktywności."""
         self.is_monitoring = False
         self.monitor_channel_activity.stop()
-
-        # Zatrzymanie odtwarzania muzyki
-        if ctx.voice_client and ctx.voice_client.is_playing():
-            ctx.voice_client.stop()
-            await asyncio.sleep(1)  # Dodanie opóźnienia dla bezpiecznego zatrzymania
-            print("🛑 Zatrzymano odtwarzanie muzyki.")
-
-        # Wymuszenie zakończenia procesu ffmpeg
-        if ctx.voice_client and ctx.voice_client.is_connected():
+        if ctx.voice_client:
             await ctx.voice_client.disconnect()
-            print("🔌 Bot został rozłączony z kanału głosowego.")
-
         self.current_playlist.clear()
         await ctx.send("Zakończono monitorowanie i zatrzymano odtwarzanie muzyki.")
 
