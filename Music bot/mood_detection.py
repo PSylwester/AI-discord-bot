@@ -3,6 +3,7 @@ from discord.ext import tasks
 from transformers import AutoModelForSequenceClassification, AutoTokenizer, pipeline
 import yt_dlp as youtube_dl
 import asyncio
+import random
 
 class AIGameDetection:
     def __init__(self, bot):
@@ -69,12 +70,28 @@ class AIGameDetection:
 
     def select_music_for_game(self, game_type):
         game_music_map = {
-            "shooter": "intense action music",
-            "strategy": "strategy music",
-            "rpg": "epic fantasy music",
-            "general": "gaming music"
+            "shooter": [
+                "intense action game soundtrack",
+                "fast-paced FPS music",
+                "adrenaline pumping shooter music"
+            ],
+            "strategy": [
+                "calm strategy game music",
+                "orchestral strategy soundtrack",
+                "relaxing strategy background music"
+            ],
+            "rpg": [
+                "epic fantasy RPG music",
+                "orchestral RPG soundtrack",
+                "adventurous role-playing game music"
+            ],
+            "general": [
+                "gaming background music",
+                "relaxing gaming playlist",
+                "chill game soundtrack"
+            ]
         }
-        return game_music_map.get(game_type, "gaming music")
+        return random.choice(game_music_map.get(game_type, ["gaming music"]))
 
     def search_song_with_title(self, query):
         options = {
