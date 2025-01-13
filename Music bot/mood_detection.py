@@ -77,12 +77,12 @@ class AIGameDetection:
             ],
             "strategy": [
                 "calm strategy game music",
-                "orchestral strategy soundtrack",
+                "strategy soundtrack",
                 "relaxing strategy background music"
             ],
             "rpg": [
                 "epic fantasy RPG music",
-                "orchestral RPG soundtrack",
+                "RPG soundtrack",
                 "adventurous role-playing game music"
             ],
             "general": [
