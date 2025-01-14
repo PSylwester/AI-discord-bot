@@ -132,7 +132,7 @@ class AIGameDetection:
         try:
             messages = [
                 message async for message in ctx.channel.history(after=self.last_checked)
-                if message.author != self.bot.user and message.content.strip()
+                if message.author != self.bot.user and message.content.strip() and not message.content.startswith('!')
             ]
             messages_text = " ".join([message.content for message in messages])
 
