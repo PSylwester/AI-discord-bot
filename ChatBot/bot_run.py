@@ -300,14 +300,20 @@ async def on_message(message):
         {
             'role': 'system',
             'content': '''
-            You are a content moderator. Evaluate the following message for:
-            1. Offensive language.
-            2. Hate speech.
-            3. Spam or unwanted advertising.
-            4. Links to malicious websites.
-            Classify the message as:
-            - "acceptable" if the message meets all guidelines.
-            - "unacceptable" if the message violates any policy.
+            You are a content moderator. Your task is to analyze messages for compliance with the following rules:
+
+            **Moderation Rules:**
+            1. **Offensive or vulgar language**: The message must not contain profanity, insults, or vulgar expressions.
+            2. **Hate speech**: The message must not include discriminatory, hateful, or offensive content directed at any group of people (e.g., based on race, religion, sexual orientation, etc.).
+            3. **Spam and advertising**: The message must not contain unsolicited advertisements or an excessive amount of repetitive content.
+            4. **Harmful content**: The message must not promote violence, self-harm, misinformation, or other harmful activities.
+
+            **Response Instructions:**
+            - If the message **complies with all the rules**, respond with the single digit: `1`.
+            - If the message **violates any of the rules**, respond with the single digit: `0`.
+            - Do not add any additional comments or explanations. You mustn't response with any other comments. Your response must be strictly `1` or `0`.
+
+            Important: Consider each rule individually and evaluate the message objectively based on the above criteria.
             ''',
         },
         {
@@ -316,16 +322,22 @@ async def on_message(message):
         },
     ])
 
+
     try:
-        moderation_result = response['message']['content'].strip().lower()
-        if "unacceptable" in moderation_result:
+        moderation_result = response['message']['content'].strip()
+        if moderation_result == "0":  # Jeśli wiadomość została oznaczona jako naruszająca zasady
             await message.delete()
             await message.channel.send(
                 f"{message.author.mention}, your message was removed due to policy violations."
             )
             return
+        elif moderation_result == "1":  # Jeśli wiadomość jest akceptowalna
+            print(f"Message from {message.author.name} is acceptable.")
+        else:
+            print("Unexpected moderation response:", moderation_result)
     except KeyError:
-        print("AI moderation failed.")
+        print("AI moderation failed: Response missing or improperly formatted.")
+
 
     # Kanał dedykowany dla rozmów z AI
     ai_conversation_channel_id = 1317140568240947270  # id kanału dla rozmowy ai <-> users
