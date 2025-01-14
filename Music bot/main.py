@@ -22,6 +22,22 @@ async def start_context_music(ctx):
 async def stop_context_music(ctx):
     await bot.mood_detection.stop_monitoring(ctx)
 
+@bot.command(name='pause')
+async def pause_music(ctx):
+    if ctx.voice_client and ctx.voice_client.is_playing():
+        ctx.voice_client.pause()
+        await ctx.send("⏸️ Muzyka została wstrzymana.")
+    else:
+        await ctx.send("❌ Nie odtwarzam żadnej muzyki.")
+
+@bot.command(name='resume')
+async def resume_music(ctx):
+    if ctx.voice_client and ctx.voice_client.is_paused():
+        ctx.voice_client.resume()
+        await ctx.send("▶️ Wznawiam odtwarzanie muzyki.")
+    else:
+        await ctx.send("❌ Muzyka nie jest wstrzymana.")
+
 # Komenda do sprawdzenia statusu bota
 @bot.command(name='status')
 async def status(ctx):
@@ -48,6 +64,14 @@ async def on_command_error(ctx, error):
         await ctx.send("Podano nieprawidłowy argument. Sprawdź, czy używasz właściwego formatu.")
     else:
         await ctx.send(f"Wystąpił błąd podczas wykonywania komendy: {str(error)}")
+
+@bot.event
+async def on_message(message):
+    # Ignoruj wiadomości wysłane przez bota
+    if message.author == bot.user:
+        return
+
+    await bot.process_commands(message)
 
 # Informacja o uruchomieniu bota
 @bot.event
