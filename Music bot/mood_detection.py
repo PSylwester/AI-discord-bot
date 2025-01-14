@@ -13,6 +13,8 @@ class AIGameDetection:
         self.current_playlist = []
         self.last_checked = None  # Znacznik czasu
         self.last_analyzed_text = ""  # Przechowuje ostatnio analizowany tekst
+        self.volume = 0.5  # DOMYŚLNA GŁOŚNOŚĆ (50%)
+
 
         # Ładowanie lokalnego modelu BERT
         model_path = "./models/bert_custom_final"
@@ -28,17 +30,27 @@ class AIGameDetection:
         self.is_monitoring = True
         self.voice_channel = ctx.author.voice.channel
         self.last_checked = discord.utils.utcnow()
+
+        # Sprawdzenie, czy pętla już działa
+        if self.monitor_channel_activity.is_running():
+            await ctx.send("🔄 Monitorowanie już jest aktywne.")
+            return
+
         await ctx.send(f"Rozpoczynam monitorowanie aktywności na kanale głosowym: {self.voice_channel.name}.")
         self.monitor_channel_activity.start(ctx)
 
     async def stop_monitoring(self, ctx):
-        """Zatrzymuje monitorowanie aktywności."""
         self.is_monitoring = False
-        self.monitor_channel_activity.stop()
+
+        # Bezpieczne zatrzymanie pętli
+        if self.monitor_channel_activity.is_running():
+            self.monitor_channel_activity.cancel()
+
         if ctx.voice_client:
             await ctx.voice_client.disconnect()
+
         self.current_playlist.clear()
-        await ctx.send("Zakończono monitorowanie i zatrzymano odtwarzanie muzyki.")
+        await ctx.send("⏹️ Zakończono monitorowanie i zatrzymano odtwarzanie muzyki.")
 
     def classify_game_type(self, text):
         label_mapping = {
@@ -120,9 +132,13 @@ class AIGameDetection:
             'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5',
             'options': '-vn'
         }
+
         audio_source = discord.FFmpegPCMAudio(url, **ffmpeg_options)
+        # DODAJEMY OBSŁUGĘ GŁOŚNOŚCI
+        audio_source = discord.PCMVolumeTransformer(audio_source, volume=self.volume)
+
         ctx.voice_client.play(audio_source)
-        print(f"Rozpoczynam odtwarzanie: {url}")
+        print(f"Rozpoczynam odtwarzanie: {url} z głośnością: {self.volume}")
 
     @tasks.loop(seconds=60)
     async def monitor_channel_activity(self, ctx):
@@ -132,7 +148,7 @@ class AIGameDetection:
         try:
             messages = [
                 message async for message in ctx.channel.history(after=self.last_checked)
-                if message.author != self.bot.user and message.content.strip() and not message.content.startswith('!')
+                if message.author != self.bot.user and message.content.strip() and not message.content.startswith(ctx.prefix)
             ]
             messages_text = " ".join([message.content for message in messages])
 
