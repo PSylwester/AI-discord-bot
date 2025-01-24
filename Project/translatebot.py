@@ -23,14 +23,13 @@ def setup_translate(bot: commands.Bot, on_ready_callbacks: list, on_message_call
     # inicjalizacja tłumacza
     translator = translate.Client()
 
-    server_language = 'pl'
+    server_language = 'en'
 
     # mapowanie języków dla kanałów
     channel_languages = {
         'main': 'pl',
         'english': 'en',
         'polish': 'pl',
-        'porozmiawiaj-z-ai': 'pl'
     }
 
     # słownik z pełnymi nazwami języków
