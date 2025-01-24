@@ -31,6 +31,7 @@ def setup_chatbot(bot: commands.Bot, on_ready_callbacks: list, on_message_callba
     on_ready_callbacks.append(chatbot_on_ready)
     # Lista dozwolonych kanałów
     allowed_channel_ids = [1332129837326012447, 1332128831460605993]  # Wstaw ID dozwolonych kanałów
+    allowed_moderarion_channel_ids = [1332373205876215899]
     # Komenda testowa
     @bot.command(name="hello")
     async def hello(ctx):
@@ -296,47 +297,48 @@ def setup_chatbot(bot: commands.Bot, on_ready_callbacks: list, on_message_callba
         
         print(f"[DEBUG] Received message: {message.content} from {message.author.name} in channel {message.channel.name}")
 
-        # **1. Moderacja wiadomości**
-        response = ollama.chat(model='llama3.2', messages=[
-            {
-                'role': 'system',
-                'content': '''
-                You are a content moderator. Your task is to analyze messages for compliance with the following rules:
+        if message.channel.id in allowed_moderarion_channel_ids:
+            # **1. Moderacja wiadomości**
+            response = ollama.chat(model='llama3.2', messages=[
+                {
+                    'role': 'system',
+                    'content': '''
+                    You are a content moderator. Your task is to analyze messages for compliance with the following rules:
 
-                **Moderation Rules:**
-                1. **Offensive or vulgar language**: The message must not contain profanity, insults, or vulgar expressions.
-                2. **Hate speech**: The message must not include discriminatory, hateful, or offensive content directed at any group of people (e.g., based on race, religion, sexual orientation, etc.).
-                3. **Harmful content**: The message must not promote violence, self-harm, misinformation, or other harmful activities.
+                    **Moderation Rules:**
+                    1. **Offensive or vulgar language**: The message must not contain profanity, insults, or vulgar expressions.
+                    2. **Hate speech**: The message must not include discriminatory, hateful, or offensive content directed at any group of people (e.g., based on race, religion, sexual orientation, etc.).
+                    3. **Harmful content**: The message must not promote violence, self-harm, misinformation, or other harmful activities.
 
-                **Response Instructions:**
-                - If the message **complies with all the rules**, respond with the single digit: `1`.
-                - If the message **violates any of the rules**, respond with the single digit: `0`.
-                - Do not add any additional comments or explanations. You mustn't response with any other comments. Your response must be strictly `1` or `0`.
+                    **Response Instructions:**
+                    - If the message **complies with all the rules**, respond with the single digit: `1`.
+                    - If the message **violates any of the rules**, respond with the single digit: `0`.
+                    - Do not add any additional comments or explanations. You mustn't response with any other comments. Your response must be strictly `1` or `0`.
 
-                Important: Consider each rule individually and evaluate the message objectively based on the above criteria.
-                ''',
-            },
-            {
-                'role': 'user',
-                'content': f"Message: {message.content}",
-            },
-        ])
+                    Important: Consider each rule individually and evaluate the message objectively based on the above criteria.
+                    ''',
+                },
+                {
+                    'role': 'user',
+                    'content': f"Message: {message.content}",
+                },
+            ])
 
 
-        try:
-            moderation_result = response['message']['content'].strip()
-            if moderation_result == "0":  # Jeśli wiadomość została oznaczona jako naruszająca zasady
-                await message.delete()
-                await message.channel.send(
-                    f"{message.author.mention}, your message was removed due to policy violations."
-                )
-                return
-            elif moderation_result == "1":  # Jeśli wiadomość jest akceptowalna
-                print(f"Message from {message.author.name} is acceptable.")
-            else:
-                print("Unexpected moderation response:", moderation_result)
-        except KeyError:
-            print("AI moderation failed: Response missing or improperly formatted.")
+            try:
+                moderation_result = response['message']['content'].strip()
+                if moderation_result == "0":  # Jeśli wiadomość została oznaczona jako naruszająca zasady
+                    await message.delete()
+                    await message.channel.send(
+                        f"{message.author.mention}, your message was removed due to policy violations."
+                    )
+                    return
+                elif moderation_result == "1":  # Jeśli wiadomość jest akceptowalna
+                    print(f"Message from {message.author.name} is acceptable.")
+                else:
+                    print("Unexpected moderation response:", moderation_result)
+            except KeyError:
+                print("AI moderation failed: Response missing or improperly formatted.")
 
 
         # Kanał dedykowany dla rozmów z AI
