@@ -17,7 +17,9 @@ import spacy
 import re
 
 
-def setup_translate_commands(bot: commands.Bot):
+def setup_translate(bot: commands.Bot, on_ready_callbacks: list, on_message_callbacks: list):
+
+    allowed_translation_channel_ids = [1297186987580588136, 1300405425015095358, 1303002972074278952, 1303008535436595241]
     # inicjalizacja tłumacza
     translator = translate.Client()
 
@@ -40,13 +42,16 @@ def setup_translate_commands(bot: commands.Bot):
     }
 
     @bot.event
-    async def on_ready():
+    async def translate_on_ready():
+        print(f'TranslateBot module on ready is ready as {bot.user.name}')
         print(f'Logged in as {bot.user}')
         try:
             synced = await bot.tree.sync()  # globalna synchronizacja komend
             print(f"Synced {len(synced)} command(s)")
         except Exception as e:
             print(f"Failed to sync commands: {e}")
+    # Rejestrujemy `translate_on_ready` w liście callbacków
+    on_ready_callbacks.append(translate_on_ready)
 
     # ogólna funkcja autocomplete dla języków pl - Polish itd.
     async def language_autocomplete(interaction: discord.Interaction, current: str):
@@ -219,26 +224,26 @@ def setup_translate_commands(bot: commands.Bot):
 
     # automatyczne tłumaczenie w zależności od ustawionego języka na kanale, globalnie jest pl
     @bot.event
-    async def on_message(message):
+    async def translate_on_message(message):
         if message.author.bot:
             return  # ignoruje wiadomości od botów
+        if message.channel.id in allowed_translation_channel_ids:
+            channel_name = message.channel.name
 
-        channel_name = message.channel.name
+            # jeśli kanału nie ma w słowniku, to ustawia domyślnie globalny język
+            target_language = channel_languages.get(channel_name, server_language)
 
-        # jeśli kanału nie ma w słowniku, to ustawia domyślnie globalny język
-        target_language = channel_languages.get(channel_name, server_language)
+            try:
+                detected_lang = translator.detect_language(message.content)["language"]
+                if detected_lang != target_language:
+                    response = translator.translate(message.content, source_language=detected_lang, target_language=target_language)
+                    translated_text = html.unescape(response["translatedText"])
+                    await message.reply(f'**Translation:** {translated_text}')
+            except Exception as e:
+                print(f"An error occured during translation: {e}")
 
-        try:
-            detected_lang = translator.detect_language(message.content)["language"]
-            if detected_lang != target_language:
-                response = translator.translate(message.content, source_language=detected_lang, target_language=target_language)
-                translated_text = html.unescape(response["translatedText"])
-                await message.reply(f'**Translation:** {translated_text}')
-        except Exception as e:
-            print(f"An error occured during translation: {e}")
-
-        await bot.process_commands(message)  # umożliwia działanie innych komend
-
+            await bot.process_commands(message)  # umożliwia działanie innych komend
+    on_message_callbacks.append(translate_on_message)
 
 
     @bot.tree.command(name="ask", description="Ask the bot to analyze your message and respond accordingly.")
@@ -401,4 +406,4 @@ def setup_translate_commands(bot: commands.Bot):
     @bot.tree.context_menu(name="Text to speech")
     async def text_to_speech(interaction: discord.Interaction, message: discord.Message):
         await text_to_speech_logic(message.content, interaction=interaction)
-
+    print("[TRANSLATEBOT] Functions loaded.")

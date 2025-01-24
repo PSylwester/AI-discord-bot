@@ -8,7 +8,6 @@ from google.cloud import translate_v2 as translate
 import html
 import json
 
-from apikeys import CHATBOTTOKEN
 import ollama
 import requests
 from discord.ext import commands
@@ -18,16 +17,19 @@ from collections import deque
 import spacy
 import re
 
-def setup_chatbot_commands(bot: commands.Bot):
+# Globalna zmienna do przechowywania historii rozmów
+conversation_history = {}
+def setup_chatbot(bot: commands.Bot, on_ready_callbacks: list, on_message_callbacks: list):
     """Rejestruje komendy ChatBota."""
     # Event: kiedy bot się uruchomi
     @bot.event
-    async def on_ready():
+    async def chatbot_on_ready():
+        print(f'ChatBot module on ready is ready as {bot.user.name}')
         print(f'Bot is ready as {bot.user.name}')
-
+    # Rejestrujemy `chatbot_on_ready` w liście callbacków
+    on_ready_callbacks.append(chatbot_on_ready)
     # Lista dozwolonych kanałów
     allowed_channel_ids = [1332129837326012447, 1332128831460605993]  # Wstaw ID dozwolonych kanałów
-
     # Komenda testowa
     @bot.command(name="hello")
     async def hello(ctx):
@@ -286,52 +288,55 @@ def setup_chatbot_commands(bot: commands.Bot):
         await channel.send(message)
         
     @bot.event
-    async def on_message(message):
+    async def chatbot_on_message(message):
+        print(f'ChatBot module on message is ready as {bot.user.name}')
         # Ignoruj wiadomości wysłane przez bota
         if message.author.bot:
             return
+        
+        print(f"[DEBUG] Received message: {message.content} from {message.author.name} in channel {message.channel.name}")
 
-        # # **1. Moderacja wiadomości**
-        # response = ollama.chat(model='llama3.2', messages=[
-        #     {
-        #         'role': 'system',
-        #         'content': '''
-        #         You are a content moderator. Your task is to analyze messages for compliance with the following rules:
+        # **1. Moderacja wiadomości**
+        response = ollama.chat(model='llama3.2', messages=[
+            {
+                'role': 'system',
+                'content': '''
+                You are a content moderator. Your task is to analyze messages for compliance with the following rules:
 
-        #         **Moderation Rules:**
-        #         1. **Offensive or vulgar language**: The message must not contain profanity, insults, or vulgar expressions.
-        #         2. **Hate speech**: The message must not include discriminatory, hateful, or offensive content directed at any group of people (e.g., based on race, religion, sexual orientation, etc.).
-        #         3. **Harmful content**: The message must not promote violence, self-harm, misinformation, or other harmful activities.
+                **Moderation Rules:**
+                1. **Offensive or vulgar language**: The message must not contain profanity, insults, or vulgar expressions.
+                2. **Hate speech**: The message must not include discriminatory, hateful, or offensive content directed at any group of people (e.g., based on race, religion, sexual orientation, etc.).
+                3. **Harmful content**: The message must not promote violence, self-harm, misinformation, or other harmful activities.
 
-        #         **Response Instructions:**
-        #         - If the message **complies with all the rules**, respond with the single digit: `1`.
-        #         - If the message **violates any of the rules**, respond with the single digit: `0`.
-        #         - Do not add any additional comments or explanations. You mustn't response with any other comments. Your response must be strictly `1` or `0`.
+                **Response Instructions:**
+                - If the message **complies with all the rules**, respond with the single digit: `1`.
+                - If the message **violates any of the rules**, respond with the single digit: `0`.
+                - Do not add any additional comments or explanations. You mustn't response with any other comments. Your response must be strictly `1` or `0`.
 
-        #         Important: Consider each rule individually and evaluate the message objectively based on the above criteria.
-        #         ''',
-        #     },
-        #     {
-        #         'role': 'user',
-        #         'content': f"Message: {message.content}",
-        #     },
-        # ])
+                Important: Consider each rule individually and evaluate the message objectively based on the above criteria.
+                ''',
+            },
+            {
+                'role': 'user',
+                'content': f"Message: {message.content}",
+            },
+        ])
 
 
-        # try:
-        #     moderation_result = response['message']['content'].strip()
-        #     if moderation_result == "0":  # Jeśli wiadomość została oznaczona jako naruszająca zasady
-        #         await message.delete()
-        #         await message.channel.send(
-        #             f"{message.author.mention}, your message was removed due to policy violations."
-        #         )
-        #         return
-        #     elif moderation_result == "1":  # Jeśli wiadomość jest akceptowalna
-        #         print(f"Message from {message.author.name} is acceptable.")
-        #     else:
-        #         print("Unexpected moderation response:", moderation_result)
-        # except KeyError:
-        #     print("AI moderation failed: Response missing or improperly formatted.")
+        try:
+            moderation_result = response['message']['content'].strip()
+            if moderation_result == "0":  # Jeśli wiadomość została oznaczona jako naruszająca zasady
+                await message.delete()
+                await message.channel.send(
+                    f"{message.author.mention}, your message was removed due to policy violations."
+                )
+                return
+            elif moderation_result == "1":  # Jeśli wiadomość jest akceptowalna
+                print(f"Message from {message.author.name} is acceptable.")
+            else:
+                print("Unexpected moderation response:", moderation_result)
+        except KeyError:
+            print("AI moderation failed: Response missing or improperly formatted.")
 
 
         # Kanał dedykowany dla rozmów z AI
@@ -342,8 +347,8 @@ def setup_chatbot_commands(bot: commands.Bot):
             return
 
         # Sprawdź, czy wiadomość pochodzi z dozwolonego kanału
-        # if message.channel.id not in allowed_channel_ids:
-        #     return  # Ignoruj wiadomości spoza dozwolonych kanałów
+        if message.channel.id not in allowed_channel_ids:
+            return  # Ignoruj wiadomości spoza dozwolonych kanałów
 
         # Skip command-prefixed messages
         if message.content.startswith(bot.command_prefix):
@@ -352,7 +357,7 @@ def setup_chatbot_commands(bot: commands.Bot):
 
         # **2. Rozpoznawanie intencji**
         # Rozpoznaj intencję użytkownika
-        if message.channel.id == allowed_channel_ids:
+        if message.channel.id in allowed_channel_ids:
             intent_result  = await detect_intent(message.content)
             intent = intent_result.get("intent", "unknown")
             city = intent_result.get("data", {}).get("city", None)
@@ -384,11 +389,7 @@ def setup_chatbot_commands(bot: commands.Bot):
 
             # Przetwarzanie standardowych komend
             await bot.process_commands(message)
-
-
-    # Historia rozmów: przechowuje ostatnie 10 wiadomości na kanał
-    conversation_history = {}
-
+    on_message_callbacks.append(chatbot_on_message)
     async def handle_ai_conversation(channel, message_content):
         """
         Funkcja obsługująca wspólną rozmowę z AI na dedykowanym kanale.
@@ -397,7 +398,7 @@ def setup_chatbot_commands(bot: commands.Bot):
             channel: Kanał, na którym odbywa się rozmowa.
             message_content: Treść wiadomości od użytkownika.
         """
-        global conversation_history
+        global conversation_history  # Użycie zmiennej globalnej
 
         # Pobierz historię rozmowy dla kanału lub zainicjalizuj nową
         if channel.id not in conversation_history:
@@ -430,4 +431,4 @@ def setup_chatbot_commands(bot: commands.Bot):
         if channel_id in conversation_history:
             conversation_history[channel_id].clear()
 
-
+    print("[CHATBOT] Functions loaded.")
