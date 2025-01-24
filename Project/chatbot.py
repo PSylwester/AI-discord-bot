@@ -19,6 +19,7 @@ import re
 
 # Globalna zmienna do przechowywania historii rozmów
 conversation_history = {}
+print(conversation_history)
 def setup_chatbot(bot: commands.Bot, on_ready_callbacks: list, on_message_callbacks: list):
     """Rejestruje komendy ChatBota."""
     # Event: kiedy bot się uruchomi
@@ -289,7 +290,6 @@ def setup_chatbot(bot: commands.Bot, on_ready_callbacks: list, on_message_callba
         
     @bot.event
     async def chatbot_on_message(message):
-        print(f'ChatBot module on message is ready as {bot.user.name}')
         # Ignoruj wiadomości wysłane przez bota
         if message.author.bot:
             return
@@ -351,9 +351,9 @@ def setup_chatbot(bot: commands.Bot, on_ready_callbacks: list, on_message_callba
             return  # Ignoruj wiadomości spoza dozwolonych kanałów
 
         # Skip command-prefixed messages
-        if message.content.startswith(bot.command_prefix):
-            await bot.process_commands(message)
-            return
+        # if message.content.startswith(bot.command_prefix):
+        #     await bot.process_commands(message)
+        #     return
 
         # **2. Rozpoznawanie intencji**
         # Rozpoznaj intencję użytkownika
@@ -425,10 +425,30 @@ def setup_chatbot(bot: commands.Bot, on_ready_callbacks: list, on_message_callba
         # Dodaj odpowiedź bota do historii
         channel_history.append({"role": "bot", "content": bot_response})
 
-    async def reset_conversation_history(channel_id):
-        """Resetuje historię rozmowy dla danego kanału."""
+        print(conversation_history)
+    @bot.tree.command(name="reset_conversation_history", description="Resets history conversation")
+    async def reset_conversation_history(interaction: discord.Interaction):
         global conversation_history
-        if channel_id in conversation_history:
-            conversation_history[channel_id].clear()
+
+        # ID kanału, który może resetować historię
+        target_channel_id = 1332151862136275067  # Zmień na odpowiednie ID kanału
+
+        # Sprawdź, czy komenda została wywołana w odpowiednim kanale
+        if interaction.channel.id != target_channel_id:
+            target_channel = interaction.guild.get_channel(target_channel_id)
+            target_channel_name = f"<#{target_channel_id}>" if target_channel else "specified channel"
+            await interaction.response.send_message(
+                f"this command is only available on channel {target_channel_name}."
+            )
+            return
+
+        # Resetowanie historii rozmowy tylko dla tego kanału
+        if interaction.channel.id in conversation_history:
+            conversation_history[interaction.channel.id].clear()
+            await interaction.response.send_message("The conversation history has been reset.")
+            print(conversation_history)
+        else:
+            await interaction.response.send_message("No conversation history found to reset.")
+
 
     print("[CHATBOT] Functions loaded.")
