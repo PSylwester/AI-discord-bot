@@ -1,25 +1,17 @@
 import os
 import discord
-from apikeys import *
+import json
+import html
+import ollama
 from discord.ext import commands
 from discord import app_commands
 from gtts import gTTS
 from google.cloud import translate_v2 as translate
-import html
-import json
-from apikeys import CHATBOTTOKEN
-import ollama
-import requests
-from youtube_transcript_api import YouTubeTranscriptApi
-import tiktoken
-from collections import deque
-import spacy
-import re
-
 
 def setup_translate(bot: commands.Bot, on_ready_callbacks: list, on_message_callbacks: list):
 
-    allowed_translation_channel_ids = [1297186987580588136, 1300405425015095358, 1303002972074278952, 1303008535436595241]
+    # kanały main, english, polish, german
+    allowed_translation_channel_ids = [1297186987580588136, 1300405425015095358, 1303002972074278952, 1332732617161969808]
     # inicjalizacja tłumacza
     translator = translate.Client()
 
@@ -27,9 +19,10 @@ def setup_translate(bot: commands.Bot, on_ready_callbacks: list, on_message_call
 
     # mapowanie języków dla kanałów
     channel_languages = {
-        'main': 'pl',
+        # 'main': 'en',
         'english': 'en',
         'polish': 'pl',
+        'german': 'de'
     }
 
     # słownik z pełnymi nazwami języków
@@ -43,10 +36,9 @@ def setup_translate(bot: commands.Bot, on_ready_callbacks: list, on_message_call
     @bot.event
     async def translate_on_ready():
         print(f'TranslateBot module on ready is ready as {bot.user.name}')
-        print(f'Logged in as {bot.user}')
         try:
             synced = await bot.tree.sync()  # globalna synchronizacja komend
-            print(f"Synced {len(synced)} command(s)")
+            # print(f"Synced {len(synced)} command(s)")
         except Exception as e:
             print(f"Failed to sync commands: {e}")
     # Rejestrujemy `translate_on_ready` w liście callbacków
@@ -405,4 +397,5 @@ def setup_translate(bot: commands.Bot, on_ready_callbacks: list, on_message_call
     @bot.tree.context_menu(name="Text to speech")
     async def text_to_speech(interaction: discord.Interaction, message: discord.Message):
         await text_to_speech_logic(message.content, interaction=interaction)
+
     print("[TRANSLATEBOT] Functions loaded.")

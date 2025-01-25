@@ -3,30 +3,18 @@ import discord
 from apikeys import *
 from discord.ext import commands
 from discord import app_commands
-from gtts import gTTS
-from google.cloud import translate_v2 as translate
-import html
-import json
 from apikeys import CHATBOTTOKEN
-import ollama
-import requests
-from youtube_transcript_api import YouTubeTranscriptApi
-import tiktoken
-from collections import deque
-import spacy
-import re
-
-
 
 from chatbot import setup_chatbot
 from translatebot import setup_translate
+from musicbot import setup_music
 
 os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = r"googlekey.json"
 
 # Tworzenie instancji bota
 bot = commands.Bot(command_prefix='/', intents=discord.Intents.all())
 
-# Dodaj globalną listę do obsługi wielu `on_ready` i `on_message` funkcji
+# globalna lista do obsługi wielu `on_ready` i `on_message` funkcji
 on_ready_callbacks = []
 on_message_callbacks = []
 
@@ -48,6 +36,7 @@ async def on_ready():
 # Dodawanie funkcjonalności z innych modułów
 setup_translate(bot, on_ready_callbacks, on_message_callbacks)
 setup_chatbot(bot, on_ready_callbacks, on_message_callbacks)
+setup_music(bot, on_ready_callbacks, on_message_callbacks)
 
 # Uruchomienie bota
 bot.run(CHATBOTTOKEN)

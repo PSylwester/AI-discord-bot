@@ -1,21 +1,18 @@
 import os
 import discord
-from apikeys import *
-
-from discord import app_commands
-from gtts import gTTS
-from google.cloud import translate_v2 as translate
 import html
 import json
-
 import ollama
 import requests
-from discord.ext import commands
-from youtube_transcript_api import YouTubeTranscriptApi
-import tiktoken
-from collections import deque
+from discord import app_commands
 import spacy
 import re
+import tiktoken
+from discord.ext import commands
+from youtube_transcript_api import YouTubeTranscriptApi
+from collections import deque
+
+OPENWEATHER_API_KEY = "80feaa8566dbc2d5175277042f93881b"
 
 # Globalna zmienna do przechowywania historii rozmów
 conversation_history = {}
@@ -26,12 +23,12 @@ def setup_chatbot(bot: commands.Bot, on_ready_callbacks: list, on_message_callba
     @bot.event
     async def chatbot_on_ready():
         print(f'ChatBot module on ready is ready as {bot.user.name}')
-        print(f'Bot is ready as {bot.user.name}')
     # Rejestrujemy `chatbot_on_ready` w liście callbacków
     on_ready_callbacks.append(chatbot_on_ready)
-    # Lista dozwolonych kanałów
-    allowed_channel_ids = [1332129837326012447, 1332128831460605993]  # Wstaw ID dozwolonych kanałów
-    allowed_moderarion_channel_ids = [1332373205876215899]
+    # Lista dozwolonych kanałów - ask_ai_1, ask_ai_2
+    allowed_channel_ids = [1332129837326012447, 1332128831460605993]
+    # main-chat
+    allowed_moderation_channel_ids = [1332373205876215899]
     # Komenda testowa
     @bot.command(name="hello")
     async def hello(ctx):
@@ -297,7 +294,7 @@ def setup_chatbot(bot: commands.Bot, on_ready_callbacks: list, on_message_callba
         
         print(f"[DEBUG] Received message: {message.content} from {message.author.name} in channel {message.channel.name}")
 
-        if message.channel.id in allowed_moderarion_channel_ids:
+        if message.channel.id in allowed_moderation_channel_ids:
             # **1. Moderacja wiadomości**
             response = ollama.chat(model='llama3.2', messages=[
                 {
@@ -341,7 +338,7 @@ def setup_chatbot(bot: commands.Bot, on_ready_callbacks: list, on_message_callba
                 print("AI moderation failed: Response missing or improperly formatted.")
 
 
-        # Kanał dedykowany dla rozmów z AI
+        # Kanał dedykowany dla rozmów z AI - conversation-ai
         ai_conversation_channel_id = 1332151862136275067  # id kanału dla rozmowy ai <-> users
 
         if message.channel.id == ai_conversation_channel_id:
