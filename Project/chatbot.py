@@ -249,7 +249,7 @@ def setup_chatbot(bot: commands.Bot, on_ready_callbacks: list, on_message_callba
 
     async def weather(channel, city: str):
         """
-        Sprawdza pogodę w podanym mieście i wysyła odpowiedź na kanał.
+        Checks the weather in the given city and sends a response to the channel.
         """
         print(f"[WEATHER] Fetching weather for city: {city}")
         try:
@@ -270,21 +270,21 @@ def setup_chatbot(bot: commands.Bot, on_ready_callbacks: list, on_message_callba
 
                 # Przygotowanie wiadomości
                 message = (
-                    f"**Pogoda w {city.title()}:**\n"
-                    f"- Opis: {weather_description.capitalize()}\n"
-                    f"- Temperatura: {temperature}°C (odczuwalna: {feels_like}°C)\n"
-                    f"- Wilgotność: {humidity}%\n"
-                    f"- Prędkość wiatru: {wind_speed} m/s"
+                    f"**Weather in {city.title()}:**\n"
+                    f"- Description: {weather_description.capitalize()}\n"
+                    f"- Temperature: {temperature}°C (feels_like: {feels_like}°C)\n"
+                    f"- Humidity: {humidity}%\n"
+                    f"- Wind speed: {wind_speed} m/s"
                 )
             else:
                 print(f"[WEATHER] Failed to fetch weather. Status code: {response.status_code}, Response: {data}")
                 # Obsługa błędu (np. nie znaleziono miasta)
-                message = f"Nie udało się znaleźć pogody dla miasta **{city}**. Sprawdź, czy nazwa jest poprawna."
+                message = f"Weather for the city of **{city}**could not be found. Check if the name is correct."
 
         except Exception as e:
             # Obsługa błędów
             print(f"[WEATHER] Error: {e}")
-            message = f"Wystąpił błąd podczas sprawdzania pogody: {e}"
+            message = f"An error occurred while checking the weather: {e}"
 
         # Wysyłanie odpowiedzi na Discordzie
         await channel.send(message)
@@ -368,15 +368,15 @@ def setup_chatbot(bot: commands.Bot, on_ready_callbacks: list, on_message_callba
 
             # Obsługa intencji
             if intent == "ask_question":
-                await message.channel.send("Wykryto pytanie! Odpowiadam...")
+                await message.channel.send("Question detected! Answering...")
                 await ask(message.channel, message.content)
 
             elif intent == "summarise_youtube":
-                await message.channel.send("Wykryto link do filmu na YouTube! Próbuję pobrać i streścić zawartość...")
+                await message.channel.send("YouTube video link detected! Trying to download and summarize the content...")
                 await summarise_youtube(message.channel, message.content)
 
             elif intent == "weather":
-                await message.channel.send("Wykryto zapytanie o pogodę!")
+                await message.channel.send("Weather query detected!")
                 if city:
                     city = get_city_in_nominative(city)
                     print(f"[INTENT HANDLER] Extracted city: {city}")
@@ -387,7 +387,7 @@ def setup_chatbot(bot: commands.Bot, on_ready_callbacks: list, on_message_callba
                     print("[INTENT HANDLER] No city extracted from the message.")
             
             else:
-                await message.channel.send("Nie rozpoznano intencji, ale możesz użyć komendy `/ask`, aby uzyskać odpowiedź.")
+                await message.channel.send("Intent not recognized, but you can use `/ask` command to get an answer.")
 
             # Przetwarzanie standardowych komend
             await bot.process_commands(message)
