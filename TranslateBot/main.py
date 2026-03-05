@@ -3,13 +3,15 @@ import discord
 import json
 import html
 import ollama
+from dotenv import load_dotenv
 from apikeys import *
 from discord.ext import commands
 from discord import app_commands
 from gtts import gTTS
 from google.cloud import translate_v2 as translate
 
-
+load_dotenv()
+BOT_TOKEN = os.getenv("BOT_TOKEN")
 os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = r"googlekey.json"
 
 bot = commands.Bot(command_prefix='!', intents=discord.Intents.all())
@@ -398,4 +400,4 @@ async def text_to_speech(interaction: discord.Interaction, message: discord.Mess
     await text_to_speech_logic(message.content, interaction=interaction)
 
 
-bot.run(BOTTOKEN)
+bot.run(BOT_TOKEN)

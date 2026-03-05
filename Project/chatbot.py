@@ -4,6 +4,7 @@ import html
 import json
 import ollama
 import requests
+from dotenv import load_dotenv
 from discord import app_commands
 import spacy
 import re
@@ -12,7 +13,8 @@ from discord.ext import commands
 from youtube_transcript_api import YouTubeTranscriptApi
 from collections import deque
 
-OPENWEATHER_API_KEY = "80feaa8566dbc2d5175277042f93881b"
+load_dotenv()
+OPENWEATHER_API_KEY = os.getenv("OPENWEATHER_API_KEY")
 
 # Globalna zmienna do przechowywania historii rozmów
 conversation_history = {}

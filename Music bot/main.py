@@ -1,7 +1,11 @@
+import os
 import discord
 from discord.ext import commands
 from mood_detection import AIGameDetection
-from apikeys import BOTTOKEN
+from dotenv import load_dotenv
+
+load_dotenv()
+MUSIC_BOT_TOKEN  = os.getenv("MUSIC_BOT_TOKEN ")
 
 intents = discord.Intents.default()
 intents.messages = True
@@ -137,4 +141,4 @@ async def on_message(message):
 async def on_ready():
     print(f'Bot jest gotowy. Zalogowano jako {bot.user.name}')
 
-bot.run(BOTTOKEN)
+bot.run(MUSIC_BOT_TOKEN)

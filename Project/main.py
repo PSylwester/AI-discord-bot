@@ -1,13 +1,15 @@
 import os
 import discord
+from dotenv import load_dotenv
 from apikeys import *
 from discord.ext import commands
 from discord import app_commands
-from apikeys import CHATBOTTOKEN
-
 from chatbot import setup_chatbot
 from translatebot import setup_translate
 from musicbot import setup_music
+
+load_dotenv()
+BOT_TOKEN = os.getenv("BOT_TOKEN")
 
 os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = r"googlekey.json"
 
@@ -39,5 +41,5 @@ setup_chatbot(bot, on_ready_callbacks, on_message_callbacks)
 setup_music(bot, on_ready_callbacks, on_message_callbacks)
 
 # Uruchomienie bota
-bot.run(CHATBOTTOKEN)
+bot.run(BOT_TOKEN)
 

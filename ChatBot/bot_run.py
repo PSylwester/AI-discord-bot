@@ -1,15 +1,18 @@
 import os
 import discord
+from dotenv import load_dotenv
 from discord.ext import commands
-from apikeys import CHATBOTTOKEN
 import ollama
 
 import json
 import requests
 from discord.ext import commands
 
+load_dotenv()
+CHATBOT_TOKEN = os.getenv("CHATBOT_TOKEN")
+
 # Klucz API OpenWeatherMap
-OPENWEATHER_API_KEY = "80feaa8566dbc2d5175277042f93881b"
+OPENWEATHER_API_KEY = os.getenv("OPENWEATHER_API_KEY")
 from youtube_transcript_api import YouTubeTranscriptApi
 import tiktoken
 
@@ -436,4 +439,4 @@ async def reset_conversation_history(channel_id):
 
 
 # Uruchomienie bota z tokenem
-bot.run(CHATBOTTOKEN)
+bot.run(CHATBOT_TOKEN)
